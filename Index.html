@@ -3,15 +3,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>生徒会執行部 タスク管理</title>
 <style>
-:root{box-sizing:border-box;--bg:#f4f5f7;--sf:#fff;--tx:#1c2333;--mu:#667085;--bd:#dfe3ea;--ac:#243a73;--ok:#2e8b57;--wn:#d99a00;--er:#d2473a;--sub:#eaeef6;color-scheme:light}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151b;--sf:#1b2029;--tx:#e6e9ef;--mu:#98a1b3;--bd:#2b3240;--ac:#8fb0ff;--ok:#4cc38a;--wn:#f0b429;--er:#ff7b72;--sub:#232a38;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#12151b;--sf:#1b2029;--tx:#e6e9ef;--mu:#98a1b3;--bd:#2b3240;--ac:#8fb0ff;--ok:#4cc38a;--wn:#f0b429;--er:#ff7b72;--sub:#232a38;color-scheme:dark}
+:root{box-sizing:border-box;--bg:#f4f5f7;--sf:#fff;--tx:#1c2333;--mu:#667085;--bd:#dfe3ea;--ac:#243a73;--lk:#0b63ce;--ok:#2e8b57;--wn:#d99a00;--er:#d2473a;--sub:#eaeef6;color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151b;--sf:#1b2029;--tx:#e6e9ef;--mu:#98a1b3;--bd:#2b3240;--ac:#8fb0ff;--lk:#8ec5ff;--ok:#4cc38a;--wn:#f0b429;--er:#ff7b72;--sub:#232a38;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151b;--sf:#1b2029;--tx:#e6e9ef;--mu:#98a1b3;--bd:#2b3240;--ac:#8fb0ff;--lk:#8ec5ff;--ok:#4cc38a;--wn:#f0b429;--er:#ff7b72;--sub:#232a38;color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.6 "Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif}
 body.big{font-size:19px}
 header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;padding:14px 20px;background:var(--sf);border-bottom:1px solid var(--bd)}
 h1{font-size:1.15em;margin:0}
 .ctl{display:flex;gap:16px;align-items:center;font-size:.9em}
-select,input[type=text],input[type=url],input[type=date],textarea{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx)}
+select,input[type=text],input[type=url],input[type=date],input[type=time],textarea{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--sf);color:var(--tx)}
 button{font:inherit;cursor:pointer}
 #perm{padding:8px 20px;font-size:.85em;color:var(--mu);background:var(--sub)}
 nav{display:flex;gap:4px;padding:10px 20px 0;overflow-x:auto}
@@ -34,7 +34,7 @@ tr[data-task]{cursor:pointer}tr[data-task]:hover{background:var(--sub)}
 tr.off td{color:var(--mu);opacity:.7}
 .chip{display:inline-block;padding:1px 9px;border-radius:10px;font-size:.8em;background:var(--sub);color:var(--mu)}
 .chip.doing{background:var(--ac);color:var(--sf)}.chip.done{background:var(--ok);color:#fff}.chip.over{background:var(--er);color:#fff}.chip.soon{background:var(--wn);color:#1c2333}
-.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}.tabs button{padding:5px 14px;border:1px solid var(--bd);border-radius:16px;background:var(--sf);color:var(--tx)}.tabs button.on{background:var(--ac);color:var(--sf);border-color:var(--ac)}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}.tabs button{padding:5px 14px;border:1px solid var(--bd);border-radius:16px;background:var(--sf);color:var(--tx)}.tabs button.on{background:var(--ac);color:var(--sf);border-color:var(--ac)}
 .tl{min-width:880px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 0}
 .row{display:grid;grid-template-columns:210px 1fr;align-items:center;min-height:34px}
 .row[data-task]{cursor:pointer}.row[data-task]:hover{background:var(--sub)}
@@ -49,11 +49,22 @@ tr.off td{color:var(--mu);opacity:.7}
 .lk{position:absolute;top:17px;border-top:2px dashed var(--bd)}
 .pri{padding:5px 14px;border:1px solid var(--ac);background:var(--ac);color:var(--sf);border-radius:6px;margin:0 8px 10px 0}
 .fm label{display:block;margin:8px 0 2px;font-size:.88em;color:var(--mu)}.fm input[type=text],.fm input[type=date],.fm select,.fm textarea{width:100%;box-sizing:border-box}.fm .ck label{display:inline-block;margin-right:10px;color:var(--tx)}
+.fm .add .sm{background:var(--sf);color:var(--tx);border-color:var(--bd);padding:3px 10px}.tm{display:flex;gap:6px}.fm .tm input,.fm .tm select{width:auto;flex:1 1 0;min-width:0}
 .sm,button[data-arch-p],button[data-arch-t],button[data-rest-p],button[data-rest-t],button[data-rm],button[data-edit]{padding:3px 10px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:6px}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
 .mc{background:var(--sf);border-radius:10px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px}
 .mc h2{margin:0 0 4px;font-size:1.2em}.mc h4{margin:16px 0 6px}
-.doc{padding:4px 0}.doc a{color:var(--ac)}
+.doc{padding:6px 0;border-top:1px solid var(--bd)}.doc:first-child{border-top:0}
+.doc a{color:var(--lk);text-decoration:underline;font-weight:500;word-break:break-all}
+.dl{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.dl .dd{margin-left:auto}
+.dd{padding:2px 9px;border:1px solid var(--bd);background:var(--sf);color:var(--mu);border-radius:6px;font-size:.82em}.dd.arm{background:var(--er);border-color:var(--er);color:#fff}
+details{background:var(--sf);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px}
+details details{background:var(--bg);margin:8px 0 0}
+summary{cursor:pointer;padding:10px 14px;font-weight:700;color:var(--tx);list-style:none;display:flex;align-items:center;gap:8px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶';font-size:.7em;color:var(--mu)}details[open]>summary::before{content:'▼'}
+.cn{margin-left:auto;color:var(--mu);font-weight:400;font-size:.85em}
+.dbody{padding:0 14px 12px}
 .add{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.add input{flex:1 1 140px}
 .add button,.end button{padding:6px 14px;border:1px solid var(--ac);background:var(--ac);color:var(--sf);border-radius:6px}
 .end{text-align:right;margin-top:16px}.end button.sec{background:none;color:var(--ac)}
@@ -67,103 +78,170 @@ tr.off td{color:var(--mu);opacity:.7}
 <script>
 const $=s=>document.querySelector(s),DAY=864e5;
 const n0=new Date(),TODAY=new Date(n0.getFullYear(),n0.getMonth(),n0.getDate());
-const D=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]):new Date(TODAY)};
+const p2=n=>String(n).padStart(2,'0');
+const PD=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?$/.exec(s||'');if(!m)return{d:new Date(TODAY),h:false};return{d:new Date(+m[1],m[2]-1,+m[3],m[4]?+m[4]:0,m[5]?+m[5]:0),h:!!m[4]}};
 const fmt=d=>`${d.getMonth()+1}/${d.getDate()}`;
-const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtT=(d,h)=>fmt(d)+(h?` ${p2(d.getHours())}:${p2(d.getMinutes())}`:'');
+const span=x=>`${fmtT(x.s,x.sh)}〜${fmtT(x.e,x.eh)}`;
+const iso=d=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+const hhmm=d=>`${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const dayOf=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+const AMP=String.fromCharCode(38),ESCM={'&':AMP+'amp;','<':AMP+'lt;','>':AMP+'gt;','"':AMP+'quot;',"'":AMP+'#39;'};
+const esc=s=>String(s==null?'':s).split('').map(c=>ESCM[c]||c).join('');
 let S=null,TEAMS=[],USERS={},PROJ=[],TASKS=[],ARCHP=[],ARCHT=[];
-let me='',view='home',team='',tlScope='all',pf='進行中',sel=null,fm=null,busy=false,tt=0;
+let me='',view='home',team='',tlScope='all',pf='進行中',sel=null,fm=null,busy=false,tt=0,delArm='';
+const OPEN=new Set();
 const ST={todo:'未着手',doing:'進行中',done:'完了'};
 const tn=id=>(TEAMS.find(t=>t[0]==id)||[0,'(不明な班)'])[1];
 const U=()=>USERS[me]||{n:'',g:[],r:{}};
 const isAdm=()=>(U().g||[]).some(g=>g=='会長'||g=='システム管理者');
 const roleIn=t=>U().r[t];
 const inTeam=t=>isAdm()||!!roleIn(t),isLead=t=>isAdm()||roleIn(t)=='班長';
-const canStatus=t=>isAdm()||roleIn(t.team)=='班長'||t.asg.includes(me),canDoc=t=>inTeam(t.team),canArch=isLead;
-const myTeams=()=>TEAMS.filter(x=>isLead(x[0]));
+const canStatus=t=>isAdm()||roleIn(t.team)=='班長'||t.asg.includes(me),canArch=inTeam;
+const myTeams=()=>TEAMS.filter(x=>inTeam(x[0]));
 const mem=t=>Object.entries(USERS).filter(([k,u])=>u.active&&u.r[t]);
 const clean=s=>String(s||'').trim();
 const names=t=>t.asg.map(a=>(USERS[a]||{n:a}).n).join('、')||'未設定';
 const pOf=t=>PROJ.find(p=>p.id==t.proj);
+const TH=()=>{try{return localStorage.getItem('theme')||'auto'}catch(e){return'auto'}};
+function setTheme(v){const r=document.documentElement;if(v=='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',v);try{localStorage.setItem('theme',v)}catch(e){}}
+setTheme(TH());
 
 function notify(m){const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(tt);tt=setTimeout(()=>e.style.display='none',6000)}
 function load(s){S=s;me=s.me;TEAMS=s.teams.map(t=>[t.id,t.name]);USERS={};
  s.users.forEach(u=>USERS[u.email]={n:u.name,active:u.active,g:u.g,r:u.r});
- const P=s.projects.map(p=>({...p,s:D(p.s),e:D(p.e)})),T=s.tasks.map(t=>({...t,s:D(t.s),e:D(t.e)}));
+ const cv=x=>{const a=PD(x.s),b=PD(x.e);return{...x,s:a.d,sh:a.h,e:b.d,eh:b.h}};
+ const P=s.projects.map(cv),T=s.tasks.map(cv);
  PROJ=P.filter(p=>!p.arch);ARCHP=P.filter(p=>p.arch);TASKS=T.filter(t=>!t.arch);ARCHT=T.filter(t=>t.arch);
  if(!TEAMS.some(t=>t[0]==team))team=TEAMS[0]?TEAMS[0][0]:'';
  if(sel&&!TASKS.some(t=>t.id==sel))sel=null}
 function call(a,p,ok,rf){if(busy){notify('処理中です。少し待ってからもう一度操作してください。');if(rf)render();return}
- busy=true;document.body.style.cursor='progress';
+ busy=true;delArm='';document.body.style.cursor='progress';
  const done=()=>{busy=false;document.body.style.cursor=''};
  google.script.run.withSuccessHandler(r=>{done();if(!r.ok){notify(r.error);if(rf)render();return}load(r.state);if(ok)ok(r.res);render()})
   .withFailureHandler(e=>{done();notify('通信に失敗しました: '+(e&&e.message||e));if(rf)render()}).api(a,p||{})}
 
-const flag=t=>{if(t.st=='done')return'';const d=(t.e-TODAY)/DAY;return d<0?'over':d<=3?'soon':''};
-const outside=t=>{const p=pOf(t);return !!p&&(t.s<p.s||t.e>p.e)};
+const endMs=x=>x.eh?+x.e:+x.e+DAY-1;
+const flag=t=>{if(t.st=='done')return'';const n=Date.now(),e=endMs(t);if(n>e)return'over';return(t.eh?(e-n)/DAY:(+t.e-+TODAY)/DAY)<=3?'soon':''};
+const outside=t=>{const p=pOf(t);return !!p&&(+t.s<+p.s||endMs(t)>endMs(p))};
 const chip=t=>{const f=flag(t);return `<span class="chip ${t.st}">${ST[t.st]}</span>`+(f=='over'?' <span class="chip over">期限超過</span>':f=='soon'?' <span class="chip soon">まもなく</span>':'')+(outside(t)?' <span class="chip soon">期間外</span>':'')};
 const prog=p=>{const ts=TASKS.filter(t=>t.proj==p.id),n=ts.filter(t=>t.st=='done').length;return{n,total:ts.length,pct:ts.length?Math.round(n/ts.length*100):0}};
 const bar=p=>{const g=prog(p);return g.total?`<div class="pb"><i style="width:${g.pct}%"></i></div><small>進捗 ${g.pct}%(完了 ${g.n} / ${g.total} タスク)</small>`:'<small>タスクなし</small>'};
 const pchip=p=>`<span class="chip ${p.st=='完了'?'done':p.st=='保留'?'':'doing'}">${esc(p.st)}</span>`;
 
-function home(){return '<div class="grid">'+TEAMS.map(([id,name])=>{const ts=TASKS.filter(t=>t.team==id),c=k=>ts.filter(t=>t.st==k).length,ov=ts.filter(t=>flag(t)=='over').length;
+function home(){
+ const th=`<div class="tabs"><span class="mu">表示:</span>${[['auto','自動'],['light','ライト'],['dark','ダーク']].map(([k,v])=>`<button data-theme="${k}" class="${TH()==k?'on':''}">${v}</button>`).join('')}</div>`;
+ return th+'<div class="grid">'+TEAMS.map(([id,name])=>{const ts=TASKS.filter(t=>t.team==id),c=k=>ts.filter(t=>t.st==k).length,ov=ts.filter(t=>flag(t)=='over').length;
 return `<section class="card click" data-go="${esc(id)}"><h3>${esc(name)}</h3><div class="cnt"><span>未着手 <b>${c('todo')}</b></span><span>進行中 <b>${c('doing')}</b></span><span>完了 <b>${c('done')}</b></span></div>${ov?`<p class="er">期限超過 ${ov}件</p>`:''}${PROJ.filter(p=>p.t==id&&p.st=='進行中').map(p=>`<div class="pj">${esc(p.n)}${bar(p)}</div>`).join('')}</section>`}).join('')+'</div>'}
-function tbl(ts){return ts.length?`<div class="wrap"><table><tr><th>タスク</th><th>プロジェクト</th><th>担当</th><th>期間</th><th>状態</th></tr>${ts.map(t=>`<tr data-task="${esc(t.id)}"><td>${esc(t.title)}</td><td>${pOf(t)?esc(pOf(t).n):'単発'}</td><td>${esc(names(t))}</td><td>${fmt(t.s)}〜${fmt(t.e)}</td><td>${chip(t)}</td></tr>`).join('')}</table></div>`:'<p class="mu">該当するタスクはありません。</p>'}
+function tbl(ts){return ts.length?`<div class="wrap"><table><tr><th>タスク</th><th>プロジェクト</th><th>担当</th><th>期間</th><th>状態</th></tr>${ts.map(t=>`<tr data-task="${esc(t.id)}"><td>${esc(t.title)}</td><td>${pOf(t)?esc(pOf(t).n):'単発'}</td><td>${esc(names(t))}</td><td>${span(t)}</td><td>${chip(t)}</td></tr>`).join('')}</table></div>`:'<p class="mu">該当するタスクはありません。</p>'}
 const teamView=()=>`<div class="tabs">${TEAMS.map(([id,n])=>`<button data-team="${esc(id)}" class="${id==team?'on':''}">${esc(n)}</button>`).join('')}</div>${addBtn('task',team)}`+tbl(TASKS.filter(t=>t.team==team).sort((a,b)=>a.e-b.e));
 function pjView(){let h=`<div class="tabs">${['進行中','完了','保留'].map(x=>`<button data-pf="${x}" class="${x==pf?'on':''}">${x}</button>`).join('')}</div>${addBtn('proj')}`;
- return h+'<div class="grid">'+TEAMS.map(([id,name])=>{const ps=PROJ.filter(p=>p.t==id&&p.st==pf);return `<section class="card"><h3>${esc(name)}</h3>${ps.length?ps.map(p=>`<div class="pj click" data-pj="${esc(p.id)}"><b>${esc(p.n)}</b> <small>${fmt(p.s)}〜${fmt(p.e)}</small>${bar(p)}</div>`).join(''):'<p class="mu">該当するプロジェクトはありません。</p>'}</section>`}).join('')+'</div>'}
-function docsView(){const sec=(title,sub,ts)=>{const ds=ts.flatMap(t=>t.docs.map(d=>({...d,t})));return `<section class="card"><h3>${esc(title)} <small>${esc(sub)}・資料 ${ds.length}件</small></h3>${ds.length?ds.map(d=>`<div class="doc"><a href="${esc(d.u)}" target="_blank" rel="noopener">${esc(d.n)}</a><br><small class="click" data-task="${esc(d.t.id)}" style="text-decoration:underline">${esc(d.t.title)}</small> <small>${esc(d.by)}・${esc(d.at)}</small></div>`).join(''):'<p class="mu">まだ資料がありません。タスクの詳細から追加できます。</p>'}</section>`};
-return '<div class="grid">'+PROJ.map(p=>sec(p.n,tn(p.t),TASKS.filter(t=>t.proj==p.id))).join('')+sec('単発タスク','プロジェクト外',TASKS.filter(t=>!t.proj))+'</div>'}
+ return h+'<div class="grid">'+TEAMS.map(([id,name])=>{const ps=PROJ.filter(p=>p.t==id&&p.st==pf);return `<section class="card"><h3>${esc(name)}</h3>${ps.length?ps.map(p=>`<div class="pj click" data-pj="${esc(p.id)}"><b>${esc(p.n)}</b> <small>${span(p)}</small>${bar(p)}</div>`).join(''):'<p class="mu">該当するプロジェクトはありません。</p>'}</section>`}).join('')+'</div>'}
 
-function timeline(){let sc=tlScope,p=PROJ.find(x=>x.id==sc);
- if(sc!='all'&&sc!='solo'&&!p){sc=tlScope='all'}
- const cmp=(x,y)=>x.s-y.s||x.e-y.e,all=sc=='all',ts=TASKS.filter(t=>all?true:sc=='solo'?!t.proj:t.proj==sc).sort(cmp);
- let h=`<div class="tabs"><button data-scope="all" class="${all?'on':''}">全班</button>${PROJ.map(x=>`<button data-scope="${esc(x.id)}" class="${x.id==sc?'on':''}">${esc(x.n)}</button>`).join('')}<button data-scope="solo" class="${sc=='solo'?'on':''}">単発タスク</button></div>${addBtn('proj')}${addBtn('task',p?p.t:team,p?p.id:'')}`;
- if(p){const out=TASKS.filter(t=>t.proj==p.id&&outside(t)).length;
-  h+=`<section class="card" style="margin-bottom:12px"><h3>${esc(p.n)} ${pchip(p)}</h3><small>${esc(tn(p.t))}・${fmt(p.s)}〜${fmt(p.e)}</small><p style="margin:6px 0">${esc(p.d)}</p>${bar(p)}${out?`<p class="warn">⚠ プロジェクトの期間(${fmt(p.s)}〜${fmt(p.e)})からはみ出しているタスクが ${out} 件あります。</p>`:''}${isLead(p.t)?`<p><button data-edit="proj|${esc(p.id)}">編集</button> <button data-arch-p="${esc(p.id)}">アーカイブ</button></p>`:''}</section>`}
+/* ---- 資料 ---- */
+let df={scope:'',team:'',proj:'',task:'',n:'',u:''};
+const DSC={all:'執行部全体',team:'班全体',project:'プロジェクト',task:'タスク'},DKEY={team:'team',project:'proj',task:'task'};
+const docsOf=(sc,tg)=>S.docs.filter(d=>d.scope==sc&&d.target==tg);
+const dkey=d=>d.scope+'|'+d.target+'|'+d.u;
+const dlink=d=>`<a href="${esc(d.u)}" target="_blank" rel="noopener">${esc(d.n)}</a>`;
+const dline=(d,extra)=>`<div class="doc"><div class="dl">${dlink(d)} <small>${esc(d.by)}・${esc(d.at)}</small><button class="dd ${delArm==dkey(d)?'arm':''}" data-dds="${esc(d.scope)}" data-ddt="${esc(d.target)}" data-ddu="${esc(d.u)}">${delArm==dkey(d)?'もう一度押すと削除':'削除'}</button></div>${extra||''}</div>`;
+const dlist=ds=>ds.length?ds.map(d=>dline(d)).join(''):'<p class="mu">まだ資料がありません。</p>';
+const tdocs=ts=>ts.flatMap(t=>t.docs.map(d=>dline(d,`<small class="click" data-task="${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</small>`))).join('');
+const dcnt=ts=>ts.reduce((n,t)=>n+t.docs.length,0);
+const dsec=(k,title,n,inner)=>`<details data-k="${esc(k)}" ${OPEN.has(k)?'open':''}><summary>${title}<span class="cn">${n}件</span></summary><div class="dbody">${inner}</div></details>`;
+function docForm(){
+ const opts={team:TEAMS.slice(),project:PROJ.map(p=>[p.id,tn(p.t)+' / '+p.n]),task:TASKS.slice().sort((a,b)=>a.e-b.e).map(t=>[t.id,tn(t.team)+' / '+t.title])};
+ const sc=['all'];['team','project','task'].forEach(k=>{if(opts[k].length)sc.push(k)});
+ if(!sc.includes(df.scope))df.scope=sc[0];
+ const k=DKEY[df.scope];let tg='';
+ if(k){const o=opts[df.scope];if(!o.some(x=>x[0]==df[k]))df[k]=o[0][0];tg=`<select id="d-t">${o.map(([i,n])=>`<option value="${esc(i)}" ${i==df[k]?'selected':''}>${esc(n)}</option>`).join('')}</select>`}
+ return `<section class="card" style="margin-bottom:14px"><h3>資料を追加</h3><div class="add"><select id="d-scope">${sc.map(x=>`<option value="${x}" ${x==df.scope?'selected':''}>${DSC[x]}</option>`).join('')}</select>${tg}</div><div class="add"><input type="text" id="d-n" placeholder="資料名" maxlength="100" value="${esc(df.n)}"><input type="url" id="d-u" placeholder="https://..." value="${esc(df.u)}"><button id="d-add">資料を追加</button></div></section>`}
+function addDoc2(){const n=clean(df.n),u=clean(df.u),k=DKEY[df.scope];
+ if(!n||!/^https?:\/\/\S+$/.test(u))return notify('資料名と、http か https で始まるURLを入力してください。');
+ call('addDoc',{scope:df.scope,id:k?df[k]:'',name:n,url:u},()=>{df.n='';df.u=''})}
+function docsView(){let h=docForm();const ad=docsOf('all','');
+ h+=dsec('all','執行部全体の資料',ad.length,dlist(ad));
+ TEAMS.forEach(([id,name])=>{
+  const ps=PROJ.filter(p=>p.t==id),solo=TASKS.filter(t=>t.team==id&&!t.proj),td=docsOf('team',id);
+  let total=td.length+dcnt(solo);
+  const inner=dsec('team:'+id,'班全体の資料',td.length,dlist(td))+ps.map(p=>{const pt=TASKS.filter(t=>t.proj==p.id),pd=docsOf('project',p.id),n=pd.length+dcnt(pt);total+=n;
+   return dsec('proj:'+p.id,'プロジェクト: '+esc(p.n),n,dlist(pd)+tdocs(pt))}).join('')+(solo.length?dsec('solo:'+id,'単発タスクの資料',dcnt(solo),tdocs(solo)||'<p class="mu">まだ資料がありません。</p>'):'');
+  h+=dsec('t:'+id,esc(name),total,inner)});
+ return h}
+
+/* ---- タイムライン(班ごとの絞り込み) ---- */
+function timeline(){let sc=tlScope;
+ const tm=sc.startsWith('team:')?sc.slice(5):'',pj=sc.startsWith('proj:')?PROJ.find(x=>x.id==sc.slice(5)):null;
+ if((sc.startsWith('proj:')&&!pj)||(tm&&!TEAMS.some(x=>x[0]==tm)))sc=tlScope='all';
+ const all=sc=='all',cmp=(x,y)=>x.s-y.s||x.e-y.e,ts=TASKS.filter(t=>all?true:pj?t.proj==pj.id:t.team==tm).sort(cmp);
+ let h=`<div class="tabs"><button data-scope="all" class="${all?'on':''}">全班</button>${TEAMS.map(([id,n])=>`<button data-scope="team:${esc(id)}" class="${tm==id?'on':''}">${esc(n)}</button>`).join('')}</div>`
+  +(pj?`<p><button class="sm" data-scope="team:${esc(pj.t)}">← ${esc(tn(pj.t))}のタイムラインに戻る</button></p>`:'')
+  +addBtn('proj')+addBtn('task',pj?pj.t:(tm||team),pj?pj.id:'');
+ if(pj){const out=TASKS.filter(t=>t.proj==pj.id&&outside(t)).length;
+  h+=`<section class="card" style="margin-bottom:12px"><h3>${esc(pj.n)} ${pchip(pj)}</h3><small>${esc(tn(pj.t))}・${span(pj)}</small><p style="margin:6px 0;white-space:pre-wrap">${esc(pj.d)}</p>${bar(pj)}${out?`<p class="warn">⚠ プロジェクトの期間(${span(pj)})からはみ出しているタスクが ${out} 件あります。</p>`:''}<p>${inTeam(pj.t)?`<button data-edit="proj|${esc(pj.id)}">編集</button> `:''}${canArch(pj.t)?`<button data-arch-p="${esc(pj.id)}">アーカイブ</button>`:''}</p></section>`}
  if(!ts.length)return h+'<p class="mu">表示するタスクがありません。</p>';
- const rows=[];if(all)TEAMS.forEach(([id,name])=>{const g=ts.filter(t=>t.team==id);if(g.length){rows.push({gh:name});g.forEach(t=>rows.push({t}))}});else ts.forEach(t=>rows.push({t}));
- const a=Math.min(...ts.map(t=>+t.s)),b=Math.max(...ts.map(t=>+t.e)),n=(b-a)/DAY+1,L=d=>(d-a)/DAY/n*100,E=d=>((d-a)/DAY+1)/n*100;
+ const rows=[],grp=(name,g)=>{if(g.length){rows.push({gh:name});g.forEach(t=>rows.push({t}))}};
+ if(all)TEAMS.forEach(([id,name])=>grp(name,ts.filter(t=>t.team==id)));
+ else if(tm){PROJ.forEach(p=>grp(p.n,ts.filter(t=>t.proj==p.id)));grp('単発タスク',ts.filter(t=>!pOf(t)))}
+ else ts.forEach(t=>rows.push({t}));
+ const grouped=all||!!tm;
+ const a=Math.min(...ts.map(t=>+dayOf(t.s))),b=Math.max(...ts.map(t=>+dayOf(t.e))),n=Math.round((b-a)/DAY)+1,L=d=>(d-a)/DAY/n*100,E=d=>((d-a)/DAY+1)/n*100;
  let tk='';for(let i=0;i<n;i+=7)tk+=`<i class="tk" style="left:${i/n*100}%">${fmt(new Date(a+i*DAY))}</i>`;
- const td=TODAY>=a&&TODAY<=b?`<i class="today" style="left:${L(+TODAY)}%"></i>`:'';
+ const td=+TODAY>=a&&+TODAY<=b?`<i class="today" style="left:${L(+TODAY)}%"></i>`:'';
  h+=`<div class="wrap"><div class="tl"><div class="row"><div class="lb"></div><div class="track">${tk}</div></div>`;
  let i=0,prev=null;
  rows.forEach(r=>{if(r.gh!==undefined){h+=`<div class="gh">${esc(r.gh)}</div>`;return}
-  const t=r.t,s=L(+t.s),e=E(+t.e),pe=prev?E(+prev.e):0,cap=`${names(t)}・${fmt(t.s)}〜${fmt(t.e)}`;i++;
-  h+=`<div class="row" data-task="${esc(t.id)}"><div class="lb">${all?'':i+'. '}${esc(t.title)}${sc=='solo'?` <small>(${esc(tn(t.team))})</small>`:''}</div><div class="track">${td}${!all&&prev&&s>pe?`<i class="lk" style="left:${pe}%;width:${s-pe}%"></i>`:''}<i class="bar ${t.st} ${flag(t)=='over'?'over':''}" style="left:${s}%;width:${e-s}%"></i><span class="bl" style="${e>60?`right:${100-s}%`:`left:${e}%`}">${esc(cap)}</span></div></div>`;prev=t});
- h+=`</div></div><p class="mu">赤い縦線は今日(${fmt(TODAY)})です。灰=未着手、青=進行中、緑=完了、赤い枠=期限超過${all?'。班ごとに行をまとめています':'、点線=前のタスクが終わってから次が始まるまでの空き期間です'}。</p>`;
- if(p)h+='<h3 style="margin-top:16px">タスク一覧</h3>'+tbl(ts.slice().sort((x,y)=>x.e-y.e));
+  const t=r.t,s=L(+dayOf(t.s)),e=E(+dayOf(t.e)),pe=prev?E(+dayOf(prev.e)):0,cap=`${names(t)}・${span(t)}`;i++;
+  h+=`<div class="row" data-task="${esc(t.id)}"><div class="lb">${grouped?'':i+'. '}${esc(t.title)}${all?` <small>(${esc(tn(t.team))})</small>`:''}</div><div class="track">${td}${!grouped&&prev&&s>pe?`<i class="lk" style="left:${pe}%;width:${s-pe}%"></i>`:''}<i class="bar ${t.st} ${flag(t)=='over'?'over':''}" style="left:${s}%;width:${e-s}%"></i><span class="bl" style="${e>60?`right:${100-s}%`:`left:${e}%`}">${esc(cap)}</span></div></div>`;prev=t});
+ h+=`</div></div><p class="mu">赤い縦線は今日(${fmt(TODAY)})です。灰=未着手、青=進行中、緑=完了、赤い枠=期限超過${grouped?(all?'。班ごと':'。プロジェクトごと')+'に行をまとめています':'、点線=前のタスクが終わってから次が始まるまでの空き期間です'}。</p>`;
+ if(pj)h+='<h3 style="margin-top:16px">タスク一覧</h3>'+tbl(ts.slice().sort((x,y)=>x.e-y.e));
  return h}
 
-function modal(){const t=TASKS.find(x=>x.id==sel);if(!t)return'';const p=pOf(t),cs=canStatus(t),cd=canDoc(t);
-return `<div class="ov" id="ov"><div class="mc"><h2>${esc(t.title)}</h2><p class="mu">${esc(tn(t.team))}・${p?esc(p.n):'単発タスク'}・優先度 ${esc(t.pri)}<br>担当: ${esc(names(t))}<br>期間: ${fmt(t.s)}〜${fmt(t.e)} ${flag(t)=='over'?'<span class="chip over">期限超過</span>':''}</p>
-${t.desc?`<p style="white-space:pre-wrap">${esc(t.desc)}</p>`:''}${outside(t)?`<p class="warn">⚠ このタスクの期間は、プロジェクトの期間(${fmt(p.s)}〜${fmt(p.e)})からはみ出しています。</p>`:''}
+function modal(){const t=TASKS.find(x=>x.id==sel);if(!t)return'';const p=pOf(t),cs=canStatus(t);
+return `<div class="ov" id="ov"><div class="mc"><h2>${esc(t.title)}</h2><p class="mu">${esc(tn(t.team))}・${p?esc(p.n):'単発タスク'}・優先度 ${esc(t.pri)}<br>担当: ${esc(names(t))}<br>期間: ${span(t)} ${flag(t)=='over'?'<span class="chip over">期限超過</span>':''}</p>
+${t.desc?`<p style="white-space:pre-wrap">${esc(t.desc)}</p>`:''}${outside(t)?`<p class="warn">⚠ このタスクの期間は、プロジェクトの期間(${span(p)})からはみ出しています。</p>`:''}
 <label>ステータス <select id="st" ${cs?'':'disabled'}>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==t.st?'selected':''}>${v}</option>`).join('')}</select></label>${cs?'':' <small>担当者、その班の班長、会長・システム管理者のみ更新できます。</small>'}
-<h4>資料</h4>${t.docs.length?t.docs.map(d=>`<div class="doc"><a href="${esc(d.u)}" target="_blank" rel="noopener">${esc(d.n)}</a> <small>${esc(d.by)}・${esc(d.at)}</small></div>`).join(''):'<p class="mu">まだ資料がありません。</p>'}
-${cd?'<div class="add"><input type="text" id="dn" placeholder="資料名" maxlength="100"><input type="url" id="du" placeholder="https://..."><button id="da">資料を追加</button></div>':'<p class="mu">資料を追加できるのは、この班に所属する人と会長・システム管理者です。</p>'}
-<div class="end">${canArch(t.team)?`<button class="sec" data-edit="task|${esc(t.id)}">編集</button> <button class="sec" data-arch-t="${esc(t.id)}">アーカイブ</button> `:''}<button class="sec" id="cl">閉じる</button></div></div></div>`}
+<h4>資料</h4>${dlist(t.docs)}
+<div class="add"><input type="text" id="dn" placeholder="資料名" maxlength="100"><input type="url" id="du" placeholder="https://..."><button id="da">資料を追加</button></div>
+<div class="end">${inTeam(t.team)?`<button class="sec" data-edit="task|${esc(t.id)}">編集</button> `:''}${canArch(t.team)?`<button class="sec" data-arch-t="${esc(t.id)}">アーカイブ</button> `:''}<button class="sec" id="cl">閉じる</button></div></div></div>`}
 
-const addBtn=(k,t='',p='')=>(t?isLead(t):myTeams().length)?`<button class="pri" data-add="${k}" data-t="${esc(t)}" data-p="${esc(p)}">${k=='task'?'+ タスクを追加':'+ プロジェクトを追加'}</button>`:'';
+/* ---- 追加・編集フォーム ---- */
+const addBtn=(k,t='',p='')=>(t?inTeam(t):myTeams().length)?`<button class="pri" data-add="${k}" data-t="${esc(t)}" data-p="${esc(p)}">${k=='task'?'+ タスクを追加':'+ プロジェクトを追加'}</button>`:'';
 const V=id=>{const e=document.getElementById(id);return e?e.value:''};
-function grab(){if(!fm)return;fm.n=V('f-n');fm.d=V('f-d');fm.s=V('f-s');fm.e=V('f-e');fm.t=V('f-t');fm.p=V('f-p');fm.r=V('f-r');fm.st=V('f-st')||fm.st;fm.a=[...document.querySelectorAll('[name=f-a]:checked')].map(x=>x.value)}
+function grab(){if(!fm)return;fm.n=V('f-n');fm.d=V('f-d');fm.s=V('f-s');fm.e=V('f-e');fm.t=V('f-t');fm.p=V('f-p');fm.r=V('f-r');fm.st=V('f-st')||fm.st;
+ fm.sk=V('f-sk')||fm.sk;fm.ek=V('f-ek')||fm.ek;fm.sh=V('f-sh');fm.eh=V('f-eh');
+ if(fm.sk=='set'&&!fm.sh)fm.sh='09:00';if(fm.ek=='set'&&!fm.eh)fm.eh='18:00';
+ fm.a=[...document.querySelectorAll('[name=f-a]:checked')].map(x=>x.value);
+ if(!fm.id)fm.docs=[...document.querySelectorAll('.fdr')].map(r=>({n:r.querySelector('.fdn').value,u:r.querySelector('.fdu').value}))}
 function formModal(){if(!fm)return'';const ts=myTeams(),tid=fm.t||(ts[0]&&ts[0][0]),isP=fm.k=='proj';
  const tsel=`<label>担当班</label><select id="f-t" data-refresh="1">${ts.map(([i,n])=>`<option value="${esc(i)}" ${i==tid?'selected':''}>${esc(n)}</option>`).join('')}</select>`;
- const dt=`<label>開始日</label><input type="date" id="f-s" value="${esc(fm.s||iso(TODAY))}"><label>終了日(期限)</label><input type="date" id="f-e" value="${esc(fm.e||iso(new Date(+TODAY+10*DAY)))}">`;
+ const tmf=(lab,id,dv,k,hv)=>`<label>${lab}</label><div class="tm"><input type="date" id="f-${id}" value="${esc(dv)}"><select id="f-${id}k" data-refresh="1"><option value="none" ${k=='set'?'':'selected'}>時刻なし</option><option value="set" ${k=='set'?'selected':''}>時刻を指定</option></select><input type="time" id="f-${id}h" value="${esc(hv||'')}" ${k=='set'?'':'disabled'}></div>`;
+ const dt=tmf('開始日','s',fm.s||iso(TODAY),fm.sk,fm.sh)+tmf(isP?'終了日':'期限','e',fm.e||iso(new Date(+TODAY+10*DAY)),fm.ek,fm.eh);
  const ta=lab=>`<label>${lab}</label><textarea id="f-d" rows="3" maxlength="1000">${esc(fm.d||'')}</textarea>`;
  const b=isP?`<label>プロジェクト名</label><input type="text" id="f-n" maxlength="100" value="${esc(fm.n||'')}">${tsel}${ta('説明・目的')}${dt}${fm.id?`<label>状態</label><select id="f-st">${['進行中','完了','保留'].map(x=>`<option ${x==(fm.st||'進行中')?'selected':''}>${x}</option>`).join('')}</select>`:''}`
  :`<label>タイトル</label><input type="text" id="f-n" maxlength="100" value="${esc(fm.n||'')}">${tsel}${ta('説明')}<label>プロジェクト</label><select id="f-p"><option value="">なし(単発)</option>${PROJ.filter(p=>p.t==tid||p.id==fm.p).map(p=>`<option value="${esc(p.id)}" ${p.id==fm.p?'selected':''}>${esc(p.n)}</option>`).join('')}</select><label>担当者</label><div class="ck">${mem(tid).map(([k,u])=>`<label><input type="checkbox" name="f-a" value="${esc(k)}" ${(fm.a||[]).includes(k)?'checked':''}> ${esc(u.n)}</label>`).join('')||'<small>この班にはまだメンバーがいません</small>'}</div>${dt}<label>優先度</label><select id="f-r">${['高','中','低'].map(x=>`<option ${x==(fm.r||'中')?'selected':''}>${x}</option>`).join('')}</select>`;
- return `<div class="ov" id="fov"><div class="mc fm"><h2>${isP?'プロジェクト':'タスク'}を${fm.id?'編集':'追加'}</h2>${b}${fm.err?`<p class="er">${esc(fm.err)}</p>`:''}<div class="end"><button class="sec" id="fc">キャンセル</button> <button class="pri" id="fs">${fm.id?'保存する':'追加する'}</button></div></div></div>`}
+ const docsBlk=fm.id?'':`<label>資料(任意・いくつでも)</label>${(fm.docs||[]).map((d,i)=>`<div class="add fdr"><input type="text" class="fdn" placeholder="資料名" maxlength="100" value="${esc(d.n)}"><input type="url" class="fdu" placeholder="https://..." value="${esc(d.u)}"><button class="sm" data-fdrm="${i}">削除</button></div>`).join('')}<div class="add"><button class="sm" data-fdadd="1">+ 資料の行を追加</button></div>`;
+ return `<div class="ov" id="fov"><div class="mc fm"><h2>${isP?'プロジェクト':'タスク'}を${fm.id?'編集':'追加'}</h2>${b}${docsBlk}${fm.err?`<p class="er">${esc(fm.err)}</p>`:''}<div class="end"><button class="sec" id="fc">キャンセル</button> <button class="pri" id="fs">${fm.id?'保存する':'追加する'}</button></div></div></div>`}
+const tkey=(x,end)=>x.length>10?x:x+(end?' 23:59':' 00:00');
 function submit(){grab();const t=fm.t||(myTeams()[0]||[])[0],err=m=>{fm.err=m;render()};
- if(!t||!isLead(t))return err('この班には追加・編集できません。');
+ if(!t||!inTeam(t))return err('この班には追加・編集できません。');
  const n=clean(fm.n);if(!n)return err('名前を入力してください。');
- if(!fm.s||!fm.e||fm.s>fm.e)return err('開始日と終了日を正しく入力してください(開始日は終了日より前にします)。');
+ if(!fm.s||!fm.e)return err('開始日と終了日を入力してください。');
+ if((fm.sk=='set'&&!fm.sh)||(fm.ek=='set'&&!fm.eh))return err('時刻を指定する場合は、時刻を入力してください。');
+ const s=fm.s+(fm.sk=='set'?' '+fm.sh:''),e=fm.e+(fm.ek=='set'?' '+fm.eh:'');
+ if(tkey(s,false)>tkey(e,true))return err('開始は終了(期限)より前にしてください。');
  const isP=fm.k=='proj',wasNew=!fm.id;
- const p=isP?{id:fm.id||'',n,d:clean(fm.d),t,s:fm.s,e:fm.e,st:fm.st||'進行中'}:{id:fm.id||'',title:n,desc:clean(fm.d),team:t,proj:fm.p||'',asg:fm.a||[],s:fm.s,e:fm.e,pri:fm.r||'中'};
- call(isP?'saveProject':'saveTask',p,res=>{if(isP&&wasNew&&res&&res.id){tlScope=res.id;view='tl'}fm=null})}
-function addDoc(){const t=TASKS.find(z=>z.id==sel),n=clean(V('dn')),u=clean(V('du'));if(!t||!canDoc(t))return;
+ let nd=[];
+ if(wasNew){const seen={};for(const d of (fm.docs||[])){const dn=clean(d.n),du=clean(d.u);if(!dn&&!du)continue;
+  if(!dn||!/^https?:\/\/\S+$/.test(du))return err('資料は、資料名と、http か https で始まるURLの両方を入力してください。');
+  if(seen[du])return err('同じURLの資料が重複しています。');seen[du]=1;nd.push({name:dn,url:du})}}
+ const p=isP?{id:fm.id||'',n,d:clean(fm.d),t,s,e,st:fm.st||'進行中'}:{id:fm.id||'',title:n,desc:clean(fm.d),team:t,proj:fm.p||'',asg:fm.a||[],s,e,pri:fm.r||'中'};
+ if(wasNew)p.docs=nd;
+ call(isP?'saveProject':'saveTask',p,res=>{if(isP&&wasNew&&res&&res.id){tlScope='proj:'+res.id;view='tl'}fm=null})}
+function addDoc(){const t=TASKS.find(z=>z.id==sel),n=clean(V('dn')),u=clean(V('du'));if(!t)return;
  if(!n||!/^https?:\/\/\S+$/.test(u))return notify('資料名と、http か https で始まるURLを入力してください。');
  if(t.docs.some(d=>d.u==u))return notify('同じURLがすでに登録されています。');
- call('addDoc',{id:t.id,name:n,url:u})}
+ call('addDoc',{scope:'task',id:t.id,name:n,url:u})}
 
 function mgView(){let h='';
  if(isAdm()){
@@ -178,9 +256,9 @@ function mgView(){let h='';
 
 function render(){if(!S)return;const u=U(),g=(u.g||[]).join('・');
  $('#who').textContent=u.n+(g?`(${g})`:'');
- let pm;if(isAdm())pm=`${u.n}さん(${g}): 全班のプロジェクト・タスクの作成と編集、メンバー・班・役割の管理ができます。`;
- else{const rs=Object.entries(u.r).map(([t,r])=>`${tn(t)}では${r}`).join('、');const lead=Object.values(u.r).includes('班長');
-  pm=`${u.n}さん: ${g?g+'・':''}${rs||'班への所属なし'}。全班を閲覧できます。`+(lead?'班長の班では、プロジェクトとタスクの作成・編集ができます。':'')+'自分が担当のタスクの状態更新と、所属班の資料追加もできます。'}
+ let pm;if(isAdm())pm=`${u.n}さん(${g}): 全班のプロジェクト・タスクの作成・編集・アーカイブ、資料の追加と削除、メンバー・班・役割の管理ができます。`;
+ else{const rs=Object.entries(u.r).map(([t,r])=>`${tn(t)}では${r}`).join('、');
+  pm=`${u.n}さん: ${g?g+'・':''}${rs||'班への所属なし'}。全班を閲覧できます。所属班のプロジェクト・タスクの作成・編集・アーカイブ、自分が担当のタスクの状態更新、資料の追加と削除ができます。`+(Object.values(u.r).includes('班長')?'班長は、自班の班員の追加と外しもできます。':'')}
  $('#perm').textContent=(S.imp?'【代行表示中(テスト用)】 ':'')+pm;
  $('#nav').innerHTML=[['home','ホーム'],['team','班別一覧'],['pj','プロジェクト'],['tl','タイムライン'],['mine','自分のタスク'],['docs','資料'],['mg','管理']].map(([k,v])=>`<button data-v="${k}" class="${k==view?'on':''}">${v}</button>`).join('');
  $('#app').innerHTML={home,team:teamView,pj:pjView,tl:timeline,docs:docsView,mg:mgView,mine:()=>tbl(TASKS.filter(t=>t.asg.includes(me)).sort((a,b)=>a.e-b.e))}[view]();
@@ -191,10 +269,15 @@ document.addEventListener('click',e=>{const t=e.target,b=t.closest('button'),d=b
  if(t.id=='fov'||t.id=='fc'){fm=null;return render()}
  if(t.id=='fs')return submit();
  if(t.id=='da')return addDoc();
- if(d.add){fm={k:d.add,t:d.t||'',p:d.p||''};return render()}
+ if(t.id=='d-add')return addDoc2();
+ if(d.dds){const k=d.dds+'|'+d.ddt+'|'+d.ddu;if(delArm!=k){delArm=k;return render()}delArm='';return call('deleteDoc',{scope:d.dds,id:d.ddt,url:d.ddu})}
+ if(d.theme){setTheme(d.theme);return render()}
+ if(d.fdadd){grab();fm.docs=(fm.docs||[]).concat([{n:'',u:''}]);return render()}
+ if(d.fdrm!==undefined){grab();fm.docs.splice(+d.fdrm,1);return render()}
+ if(d.add){fm={k:d.add,t:d.t||'',p:d.p||'',sk:'none',ek:'none',docs:[{n:'',u:''}]};return render()}
  if(d.edit){const[k,id]=d.edit.split('|');
-  if(k=='task'){const z=TASKS.find(y=>y.id==id);if(z&&isLead(z.team)){sel=null;fm={k:'task',id:z.id,n:z.title,d:z.desc,t:z.team,p:z.proj,a:z.asg.slice(),s:iso(z.s),e:iso(z.e),r:z.pri}}}
-  else{const z=PROJ.find(y=>y.id==id);if(z&&isLead(z.t))fm={k:'proj',id:z.id,n:z.n,d:z.d,t:z.t,s:iso(z.s),e:iso(z.e),st:z.st}}
+  if(k=='task'){const z=TASKS.find(y=>y.id==id);if(z&&inTeam(z.team)){sel=null;fm={k:'task',id:z.id,n:z.title,d:z.desc,t:z.team,p:z.proj,a:z.asg.slice(),s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',r:z.pri}}}
+  else{const z=PROJ.find(y=>y.id==id);if(z&&inTeam(z.t))fm={k:'proj',id:z.id,n:z.n,d:z.d,t:z.t,s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',st:z.st}}
   return render()}
  if(d.archT)return call('archive',{kind:'task',id:d.archT},()=>{sel=null});
  if(d.archP)return call('archive',{kind:'project',id:d.archP},()=>{tlScope='all'});
@@ -207,18 +290,22 @@ document.addEventListener('click',e=>{const t=e.target,b=t.closest('button'),d=b
  if(d.addm){const u=V('am-'+d.addm);return u?call('setTeamRole',{email:u,team:d.addm,role:'班員'}):undefined}
  if(d.pf){pf=d.pf;return render()}
  if(d.v){view=d.v;return render()}
- if(x=c('pj')){tlScope=x.dataset.pj;view='tl';return render()}
+ if(d.scope){tlScope=d.scope;return render()}
+ if(x=c('pj')){tlScope='proj:'+x.dataset.pj;view='tl';return render()}
  if(x=c('task')){sel=x.dataset.task;return render()}
  if(x=c('go')){team=x.dataset.go;view='team';return render()}
- if(x=c('team')){team=x.dataset.team;return render()}
- if(x=c('scope')){tlScope=x.dataset.scope;return render()}});
+ if(x=c('team')){team=x.dataset.team;return render()}});
 document.addEventListener('change',e=>{const t=e.target;
+ if(t.id=='d-scope'){df.scope=t.value;return render()}
+ if(t.id=='d-t'){df[DKEY[df.scope]]=t.value;return}
  if(t.id=='big')return document.body.classList.toggle('big',t.checked);
  if(t.id=='st'){const z=TASKS.find(y=>y.id==sel);if(z&&canStatus(z))call('setTaskStatus',{id:z.id,st:t.value},null,1);return}
  if(t.dataset.refresh&&fm){const o=fm.t;grab();if(fm.t!=o){fm.p='';fm.a=[]}return render()}
  if(t.dataset.act!==undefined)return call('setActive',{email:t.dataset.act,active:t.checked},null,1);
  if(t.dataset.g!==undefined)return call('setGlobal',{email:t.dataset.g,role:t.value},null,1);
  if(t.dataset.r!==undefined){const[k,tm]=t.dataset.r.split('|');return call('setTeamRole',{email:k,team:tm,role:t.value},null,1)}});
+document.addEventListener('input',e=>{if(e.target.id=='d-n')df.n=e.target.value;if(e.target.id=='d-u')df.u=e.target.value});
+document.addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k){if(e.target.open)OPEN.add(k);else OPEN.delete(k)}},true);
 
 if(typeof google==='undefined'||!google.script)$('#app').innerHTML='<p class="mu">この画面は Google Apps Script のWebアプリとして開いてください。</p>';
 else google.script.run.withSuccessHandler(r=>{if(!r.ok){$('#app').innerHTML=`<p class="er">${esc(r.error)}</p>`;return}load(r.state);render()}).withFailureHandler(e=>{$('#app').innerHTML=`<p class="er">読み込みに失敗しました: ${esc(e&&e.message||e)}</p>`}).api('getState',{});
