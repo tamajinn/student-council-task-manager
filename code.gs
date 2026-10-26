@@ -5,11 +5,8 @@
  */
 
 const TZ = 'Asia/Tokyo';
-const CFG = {
-  LEAD_CAN_EDIT_MEMBERS: false // true にすると、班長が自班の班員の追加・外しをできる
-};
 const G_ADMIN = ['会長', 'システム管理者'];   // 全班に対する編集権限
-const G_ALL = ['会長', '副会長', 'システム管理者'];
+const G_ALL = ['会長', 'システム管理者'];
 const ST_J = { todo: '未着手', doing: '進行中', done: '完了' };
 const ST_K = { '未着手': 'todo', '進行中': 'doing', '完了': 'done' };
 const PROJ_ST = ['進行中', '完了', '保留'];
@@ -17,7 +14,7 @@ const PRIS = ['高', '中', '低'];
 
 const SHEETS = {
   members:   { n: 'メンバー',     c: ['メールアドレス', '名前', '有効'] },
-  teams:     { n: '班',           c: ['班ID', '班名'] },
+  teams:     { n: '班',           c: ['班ID', '班名', 'アーカイブ'] },
   affil:     { n: '所属',         c: ['メールアドレス', '班ID', '役割'] },
   globals:   { n: '全体権限',     c: ['メールアドレス', '全体役割'] },
   projects:  { n: 'プロジェクト', c: ['プロジェクトID', '名前', '説明・目的', '担当班', '開始日', '終了日', '状態', 'アーカイブ', '作成者', '作成日時', '更新日時'] },
@@ -71,21 +68,21 @@ function load_() {
     return { email: lc(r['メールアドレス']), name: r['名前'], active: r['有効'].toUpperCase() !== 'FALSE', raw: r, _row: r._row };
   });
   const teams = rows_('teams').filter(function (r) { return r['班ID']; }).map(function (r) {
-    return { id: r['班ID'], name: r['班名'], raw: r, _row: r._row };
+    return { id: r['班ID'], name: r['班名'], arch: r['アーカイブ'] !== '', raw: r, _row: r._row };
   });
   const affil = rows_('affil').filter(function (r) { return r['メールアドレス']; }).map(function (r) {
     return { email: lc(r['メールアドレス']), team: r['班ID'], role: r['役割'], raw: r, _row: r._row };
   });
   const globals = rows_('globals').filter(function (r) { return r['メールアドレス']; }).map(function (r) {
     return { email: lc(r['メールアドレス']), role: r['全体役割'], raw: r, _row: r._row };
-  });
+  }).filter(function (g) { return G_ALL.indexOf(g.role) >= 0; });   // 廃止した役職(副会長など)の古い行は無視する
   const projects = rows_('projects').filter(function (r) { return r['プロジェクトID']; }).map(function (r) {
     return { id: r['プロジェクトID'], n: r['名前'], d: r['説明・目的'], t: r['担当班'], s: r['開始日'], e: r['終了日'],
       st: r['状態'] || '進行中', arch: r['アーカイブ'] !== '', raw: r, _row: r._row };
   });
   const docs = docRows.map(function (d) {
     const sc = d['区分'] || 'task';
-    return { scope: sc, target: sc === 'all' ? '' : (d['対象ID'] || d['タスクID']), n: d['資料名'], u: d['URL'], by: d['追加者'], at: d['追加日時'] };
+    return { scope: sc, target: sc === 'all' ? '' : (d['対象ID'] || d['タスクID']), n: d['資料名'], u: d['URL'], by: d['追加者'], at: d['追加日時'], _row: d._row };
   });
   const tasks = rows_('tasks').filter(function (r) { return r['タスクID']; }).map(function (r) {
     const id = r['タスクID'];
@@ -141,7 +138,9 @@ function esc_(s) { return String(s).replace(/[&<>"']/g, function (c) { return { 
 
 /* ---------- 権限(サーバー側の本体) ---------- */
 function isLead_(u, t) { return u.admin || u.r[t] === '班長'; }
-function inTeam_(u, t) { return u.admin || !!u.r[t]; }
+// タスク・プロジェクトの作成/編集は、登録されているメンバー全員が全班に対してできる(アーカイブ済みの班を除く)
+// 班なしタスクのアーカイブ/元に戻すは、作成した本人と会長・システム管理者
+function canArchive_(u, t) { return t.team === '' ? (u.admin || String(t.raw['作成者']).toLowerCase() === u.email) : isLead_(u, t.team); }
 function canStatus_(u, t) { return u.admin || u.r[t.team] === '班長' || t.asg.indexOf(u.email) >= 0; }
 function deny_(m) { throw new Error(m || '権限がありません。'); }
 
@@ -151,14 +150,13 @@ function snapshot_(c) {
   const dv = function (d) { return { scope: d.scope, target: d.target, n: d.n, u: d.u, by: nameOf(String(d.by).toLowerCase()), at: (+d.at.slice(5, 7)) + '/' + (+d.at.slice(8, 10)) }; };
   const nameOf = function (e) { const m = st.members.find(function (x) { return x.email === e; }); return m && m.name ? m.name : e; };
   return {
-    cfg: { leadEditMembers: CFG.LEAD_CAN_EDIT_MEMBERS },
     imp: c.imp, me: c.email,
-    teams: st.teams.map(function (t) { return { id: t.id, name: t.name }; }),
+    teams: st.teams.map(function (t) { return { id: t.id, name: t.name, arch: t.arch }; }),
     users: st.members.map(function (m) { const v = view_(st, m.email); return { email: m.email, name: m.name || m.email, active: m.active, g: v.g, r: v.r }; }),
     projects: st.projects.map(function (p) { return { id: p.id, n: p.n, d: p.d, t: p.t, s: p.s, e: p.e, st: p.st, arch: p.arch }; }),
     tasks: st.tasks.map(function (t) {
       return { id: t.id, title: t.title, desc: t.desc, team: t.team, proj: t.proj, asg: t.asg, s: t.s, e: t.e, st: t.st, pri: t.pri,
-        imp: t.imp, arch: t.arch !== '', via: t.arch === 'project',
+        imp: t.imp, arch: t.arch !== '', via: t.arch === 'project', cr: String(t.raw['作成者']).toLowerCase(),
         docs: t.docs.map(dv) };
     }),
     docs: st.docs.filter(function (d) { return d.scope !== 'task'; }).map(dv)
@@ -193,12 +191,19 @@ function str_(v, max, label, req) {
   return s;
 }
 function dt_(s, label) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+  // 'yyyy-MM-dd'(時刻なし)または 'yyyy-MM-dd HH:mm'(時刻あり)
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?: ([01]\d|2[0-3]):([0-5]\d))?$/.exec(String(s || ''));
   const d = m && new Date(+m[1], +m[2] - 1, +m[3]);
   if (!m || d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) throw new Error(label + 'を正しく入力してください。');
   return s;
 }
-function range_(s, e) { if (s > e) throw new Error('開始日は終了日より前にしてください。'); }
+function key_(s, isEnd) { return s.length > 10 ? s : s + (isEnd ? ' 23:59' : ' 00:00'); }
+function range_(s, e) { if (key_(s, false) > key_(e, true)) throw new Error('開始は終了(期限)より前にしてください。'); }
+// アーカイブ済みの班では、タスク・プロジェクトの作成/編集/状態更新/元に戻すはできない(資料の追加と削除はできる)
+function liveTeam_(st, id) {
+  const t = st.teams.find(function (x) { return x.id === id; });
+  if (t && t.arch) throw new Error('この班はアーカイブされています。先に管理画面から班を元に戻してください。');
+}
 function teamOk_(st, id) {
   if (!st.teams.some(function (t) { return t.id === id; })) throw new Error('班が正しくありません。');
   return id;
@@ -206,47 +211,85 @@ function teamOk_(st, id) {
 
 /* ---------- タスク ---------- */
 H.saveTask = function (c, p) {
-  const st = c.st, u = c.me;
-  const team = teamOk_(st, p.team);
-  if (!isLead_(u, team)) deny_('この班のタスクを作成・編集する権限がありません。');
+  const st = c.st;
+  const old = p.id ? st.tasks.find(function (x) { return x.id === p.id; }) : null;
+  if (p.id && (!old || old.arch)) throw new Error('タスクが見つかりません。');
+  // 班なしタスク(担当班が空欄の単発タスク): 全員が作成・編集できる。担当者は「取り組む」ボタンでだけ決まる
+  const free = old ? old.team === '' : !!p.free;
+  const team = free ? '' : teamOk_(st, p.team);
+  if (!free) liveTeam_(st, team);
   const title = str_(p.title, 100, 'タイトル', true), desc = str_(p.desc, 1000, '説明', false);
   const s = dt_(p.s, '開始日'), e = dt_(p.e, '期限'); range_(s, e);
   const pri = PRIS.indexOf(p.pri) >= 0 ? p.pri : '中';
-  const proj = String(p.proj || '');
+  const proj = free ? '' : String(p.proj || '');
   if (proj) {
     const pr = st.projects.find(function (x) { return x.id === proj; });
     if (!pr || pr.arch) throw new Error('プロジェクトが正しくありません。');
   }
-  const asg = Array.from(new Set((p.asg || []).map(function (x) { return String(x).toLowerCase(); })));
+  const asg = free ? [] : Array.from(new Set((p.asg || []).map(function (x) { return String(x).toLowerCase(); })));
   asg.forEach(function (em) {
     const ok = st.members.some(function (m) { return m.email === em && m.active; }) &&
       st.affil.some(function (a) { return a.email === em && a.team === team; });
     if (!ok) throw new Error('担当者は、その班に所属するメンバーから選んでください。');
   });
+  const newDocs = p.id ? [] : docsIn_(p.docs);
   let id = p.id, row;
   if (id) {
-    const t = st.tasks.find(function (x) { return x.id === id; });
-    if (!t || t.arch) throw new Error('タスクが見つかりません。');
-    if (!isLead_(u, t.team)) deny_('このタスクを編集する権限がありません。');
+    const t = old;
+    liveTeam_(st, t.team);
     row = Object.assign({}, t.raw, { 'タイトル': title, '説明': desc, '担当班': team, 'プロジェクトID': proj, '開始日': s, '期限': e, '優先度': pri, '更新日時': now_() });
     put_('tasks', t._row, row);
-    delRows_('assignees', st.asgRows.filter(function (a) { return a['タスクID'] === id; }).map(function (a) { return a._row; }));
-    log_(c, 'タスク編集', id + ' ' + title);
+    if (!free) delRows_('assignees', st.asgRows.filter(function (a) { return a['タスクID'] === id; }).map(function (a) { return a._row; }));
+    log_(c, free ? '班なしタスク編集' : 'タスク編集', id + ' ' + title);
   } else {
     id = id_('t');
     add_('tasks', { 'タスクID': id, 'タイトル': title, '説明': desc, '担当班': team, 'プロジェクトID': proj, '開始日': s, '期限': e,
       'ステータス': ST_J.todo, '優先度': pri, '重要フラグ': 'FALSE', 'アーカイブ': '', '作成者': c.email, '作成日時': now_(), '更新日時': now_() });
-    log_(c, 'タスク作成', id + ' ' + title);
+    log_(c, free ? '班なしタスク作成' : 'タスク作成', id + ' ' + title);
+    addDocsNew_(c, 'task', id, newDocs);
   }
   asg.forEach(function (em) { add_('assignees', { 'タスクID': id, 'メールアドレス': em }); });
   return { id: id };
+};
+
+/* 班なしタスクに「取り組む」: 1つのタスクにつき担当者は1人。押した人が担当者になる。
+ * 将来のポイント付与のため、誰がいつ取り組んだかは「担当者」シートと操作ログに残る(ポイント機能そのものは未実装)。 */
+function freeTask_(c, id) {
+  const t = c.st.tasks.find(function (x) { return x.id === id; });
+  if (!t || t.arch) throw new Error('タスクが見つかりません。');
+  if (t.team !== '') throw new Error('取り組むボタンが使えるのは、班なしタスクだけです。');
+  return t;
+}
+H.takeTask = function (c, p) {
+  const t = freeTask_(c, p.id);
+  if (t.st === 'done') throw new Error('完了したタスクには取り組めません。');
+  if (t.asg.length) {
+    const m = c.st.members.find(function (x) { return x.email === t.asg[0]; });
+    throw new Error('このタスクにはすでに' + (m && m.name ? m.name : t.asg[0]) + 'さんが取り組んでいます。');
+  }
+  add_('assignees', { 'タスクID': t.id, 'メールアドレス': c.email });
+  put_('tasks', t._row, Object.assign({}, t.raw, { '更新日時': now_() }));
+  log_(c, 'タスクに取り組む', t.id + ' ' + t.title);
+  return null;
+};
+H.leaveTask = function (c, p) {
+  const t = freeTask_(c, p.id);
+  if (!t.asg.length) throw new Error('このタスクには、まだ誰も取り組んでいません。');
+  if (!c.me.admin && t.asg.indexOf(c.email) < 0) deny_('取り組みをやめられるのは、取り組んでいる本人と会長・システム管理者です。');
+  if (t.st === 'done') throw new Error('完了したタスクは、取り組みをやめられません。');
+  const who = t.asg[0];
+  delRows_('assignees', c.st.asgRows.filter(function (a) { return a['タスクID'] === t.id; }).map(function (a) { return a._row; }));
+  put_('tasks', t._row, Object.assign({}, t.raw, { 'ステータス': ST_J.todo, '更新日時': now_() }));
+  log_(c, 'タスクの取り組みをやめる', t.id + ' ' + t.title + ' (' + who + ')');
+  return null;
 };
 
 H.setTaskStatus = function (c, p) {
   const t = c.st.tasks.find(function (x) { return x.id === p.id; });
   if (!t || t.arch) throw new Error('タスクが見つかりません。');
   if (!ST_J[p.st]) throw new Error('ステータスが正しくありません。');
-  if (!canStatus_(c.me, t)) deny_('ステータスを更新できるのは、担当者、その班の班長、会長・システム管理者です。');
+  liveTeam_(c.st, t.team);
+  if (!canStatus_(c.me, t)) deny_(t.team === '' ? 'ステータスを更新できるのは、取り組んでいる人と会長・システム管理者です。' : 'ステータスを更新できるのは、担当者、その班の班長、会長・システム管理者です。');
   put_('tasks', t._row, Object.assign({}, t.raw, { 'ステータス': ST_J[p.st], '更新日時': now_() }));
   log_(c, 'ステータス更新', t.id + ' ' + ST_J[t.st] + '→' + ST_J[p.st]);
   return null;
@@ -255,17 +298,17 @@ H.setTaskStatus = function (c, p) {
 /* ---------- プロジェクト ---------- */
 H.saveProject = function (c, p) {
   const st = c.st, u = c.me;
-  const team = teamOk_(st, p.t);
-  if (!isLead_(u, team)) deny_('この班のプロジェクトを作成・編集する権限がありません。');
+  const team = teamOk_(st, p.t); liveTeam_(st, team);
   const n = str_(p.n, 100, 'プロジェクト名', true), d = str_(p.d, 1000, '説明・目的', false);
   const s = dt_(p.s, '開始日'), e = dt_(p.e, '終了日'); range_(s, e);
   const stt = p.st || '進行中';
   if (PROJ_ST.indexOf(stt) < 0) throw new Error('状態が正しくありません。');
+  const newDocs = p.id ? [] : docsIn_(p.docs);
   let id = p.id;
   if (id) {
     const pr = st.projects.find(function (x) { return x.id === id; });
     if (!pr || pr.arch) throw new Error('プロジェクトが見つかりません。');
-    if (!isLead_(u, pr.t)) deny_('このプロジェクトを編集する権限がありません。');
+    liveTeam_(st, pr.t);
     put_('projects', pr._row, Object.assign({}, pr.raw, { '名前': n, '説明・目的': d, '担当班': team, '開始日': s, '終了日': e, '状態': stt, '更新日時': now_() }));
     log_(c, 'プロジェクト編集', id + ' ' + n);
   } else {
@@ -273,6 +316,7 @@ H.saveProject = function (c, p) {
     add_('projects', { 'プロジェクトID': id, '名前': n, '説明・目的': d, '担当班': team, '開始日': s, '終了日': e, '状態': stt,
       'アーカイブ': '', '作成者': c.email, '作成日時': now_(), '更新日時': now_() });
     log_(c, 'プロジェクト作成', id + ' ' + n);
+    addDocsNew_(c, 'project', id, newDocs);
   }
   return { id: id };
 };
@@ -283,7 +327,7 @@ H.archive = function (c, p) {
   if (p.kind === 'task') {
     const t = st.tasks.find(function (x) { return x.id === p.id; });
     if (!t || t.arch) throw new Error('タスクが見つかりません。');
-    if (!isLead_(c.me, t.team)) deny_('アーカイブする権限がありません。');
+    if (!canArchive_(c.me, t)) deny_('アーカイブする権限がありません。');
     put_('tasks', t._row, Object.assign({}, t.raw, { 'アーカイブ': 'task', '更新日時': now_() }));
     log_(c, 'タスクをアーカイブ', t.id + ' ' + t.title);
   } else if (p.kind === 'project') {
@@ -303,7 +347,8 @@ H.restore = function (c, p) {
   if (p.kind === 'task') {
     const t = st.tasks.find(function (x) { return x.id === p.id; });
     if (!t || !t.arch) throw new Error('タスクが見つかりません。');
-    if (!isLead_(c.me, t.team)) deny_('元に戻す権限がありません。');
+    if (!canArchive_(c.me, t)) deny_('元に戻す権限がありません。');
+    liveTeam_(st, t.team);
     const pr = t.proj && st.projects.find(function (x) { return x.id === t.proj; });
     if (pr && pr.arch) throw new Error('先にプロジェクトを元に戻してください。');
     put_('tasks', t._row, Object.assign({}, t.raw, { 'アーカイブ': '', '更新日時': now_() }));
@@ -312,6 +357,7 @@ H.restore = function (c, p) {
     const pr = st.projects.find(function (x) { return x.id === p.id; });
     if (!pr || !pr.arch) throw new Error('プロジェクトが見つかりません。');
     if (!isLead_(c.me, pr.t)) deny_('元に戻す権限がありません。');
+    liveTeam_(st, pr.t);
     put_('projects', pr._row, Object.assign({}, pr.raw, { 'アーカイブ': '', '更新日時': now_() }));
     st.tasks.filter(function (t) { return t.proj === pr.id && t.arch === 'project'; }).forEach(function (t) {
       put_('tasks', t._row, Object.assign({}, t.raw, { 'アーカイブ': '', '更新日時': now_() }));
@@ -322,31 +368,56 @@ H.restore = function (c, p) {
 };
 
 /* ---------- 資料 ---------- */
-H.addDoc = function (c, p) {
-  const st = c.st, u = c.me, scope = p.scope || 'task';
-  let target = String(p.id || ''), ok, msg;
+// 新規作成時に一緒に登録する資料(名前もURLも空の行は無視)。書き込みの前に全件を検査する
+function docsIn_(list) {
+  const out = [], seen = {};
+  (list || []).slice(0, 10).forEach(function (d) {
+    const n0 = String((d && d.name) || '').trim(), u0 = String((d && d.url) || '').trim();
+    if (!n0 && !u0) return;
+    const n = str_(n0, 100, '資料名', true), u = str_(u0, 2000, 'URL', true);
+    if (!/^https?:\/\/[^\s]+$/.test(u)) throw new Error('http か https で始まるURLを入力してください。');
+    if (seen[u]) throw new Error('同じURLがすでに登録されています。');
+    seen[u] = true; out.push({ n: n, u: u });
+  });
+  return out;
+}
+function addDocsNew_(c, scope, target, docs) {
+  docs.forEach(function (d) {
+    add_('docs', { 'タスクID': scope === 'task' ? target : '', '資料名': d.n, 'URL': d.u, '追加者': c.email, '追加日時': now_(), '区分': scope, '対象ID': target });
+  });
+  if (docs.length) log_(c, '資料を追加', scope + ':' + target + ' ' + docs.length + '件(新規作成と同時)');
+}
+function docTarget_(st, scope, id) {
+  let target = String(id || '');
   if (scope === 'task') {
     const t = st.tasks.find(function (x) { return x.id === target; });
     if (!t || t.arch) throw new Error('タスクが見つかりません。');
-    ok = inTeam_(u, t.team); msg = '資料を追加できるのは、この班に所属する人と会長・システム管理者です。';
   } else if (scope === 'project') {
     const pr = st.projects.find(function (x) { return x.id === target; });
     if (!pr || pr.arch) throw new Error('プロジェクトが見つかりません。');
-    ok = inTeam_(u, pr.t); msg = 'プロジェクトの資料を追加できるのは、担当班に所属する人と会長・システム管理者です。';
   } else if (scope === 'team') {
     teamOk_(st, target);
-    ok = inTeam_(u, target); msg = '班の資料を追加できるのは、その班に所属する人と会長・システム管理者です。';
   } else if (scope === 'all') {
     target = '';
-    ok = u.admin || Object.keys(u.r).some(function (k) { return u.r[k] === '班長'; });
-    msg = '執行部全体の資料を追加できるのは、班長と会長・システム管理者です。';
   } else throw new Error('資料の区分が正しくありません。');
-  if (!ok) deny_(msg);
+  return target;
+}
+// 資料の追加・削除は、登録されているメンバー全員ができる(区分を問わない)
+H.addDoc = function (c, p) {
+  const st = c.st, scope = p.scope || 'task', target = docTarget_(st, scope, p.id);
   const n = str_(p.name, 100, '資料名', true), url = str_(p.url, 2000, 'URL', true);
   if (!/^https?:\/\/[^\s]+$/.test(url)) throw new Error('http か https で始まるURLを入力してください。');
   if (st.docs.some(function (d) { return d.scope === scope && d.target === target && d.u === url; })) throw new Error('同じURLがすでに登録されています。');
   add_('docs', { 'タスクID': scope === 'task' ? target : '', '資料名': n, 'URL': url, '追加者': c.email, '追加日時': now_(), '区分': scope, '対象ID': target });
   log_(c, '資料を追加', scope + ':' + target + ' ' + n);
+  return null;
+};
+H.deleteDoc = function (c, p) {
+  const scope = p.scope || 'task', target = docTarget_(c.st, scope, p.id), url = String(p.url || '');
+  const d = c.st.docs.find(function (x) { return x.scope === scope && x.target === target && x.u === url; });
+  if (!d) throw new Error('資料が見つかりません。すでに削除されている可能性があります。');
+  delRows_('docs', [d._row]);
+  log_(c, '資料を削除', scope + ':' + target + ' ' + d.n + ' ' + url);
   return null;
 };
 
@@ -397,10 +468,11 @@ H.setTeamRole = function (c, p) {
   const m = c.st.members.find(function (x) { return x.email === email; });
   if (!m) throw new Error('メンバーが見つかりません。');
   const cur = c.st.affil.find(function (a) { return a.email === email && a.team === team; });
+  liveTeam_(c.st, team);
   if (!c.me.admin) {
-    // 班長による編成(設定で許可されている場合のみ): 班員の追加と外しだけ
-    if (!(CFG.LEAD_CAN_EDIT_MEMBERS && c.me.r[team] === '班長' && role !== '班長' && !(cur && cur.role === '班長'))) {
-      deny_('この操作ができるのは、会長とシステム管理者だけです。');
+    // 班長は、自班の班員を自由に追加・削除できる(班長の任命・解任は会長・システム管理者だけ)
+    if (!(c.me.r[team] === '班長' && role !== '班長' && !(cur && cur.role === '班長'))) {
+      deny_('班員の追加・削除ができるのは、その班の班長と会長・システム管理者です(班長の任命・解任は会長・システム管理者だけ)。');
     }
   }
   if (cur) delRows_('affil', [cur._row]);
@@ -422,6 +494,24 @@ H.renameTeam = function (c, p) {
   const name = str_(p.name, 30, '班の名前', true);
   put_('teams', t._row, Object.assign({}, t.raw, { '班名': name }));
   log_(c, '班名の変更', t.id + ' ' + name);
+  return null;
+};
+
+H.archiveTeam = function (c, p) {
+  needAdmin_(c);
+  const t = c.st.teams.find(function (x) { return x.id === p.id; });
+  if (!t) throw new Error('班が見つかりません。');
+  if (t.arch) throw new Error('すでにアーカイブされています。');
+  put_('teams', t._row, Object.assign({}, t.raw, { 'アーカイブ': 'TRUE' }));
+  log_(c, '班をアーカイブ', t.id + ' ' + t.name);
+  return null;
+};
+H.restoreTeam = function (c, p) {
+  needAdmin_(c);
+  const t = c.st.teams.find(function (x) { return x.id === p.id; });
+  if (!t || !t.arch) throw new Error('班が見つかりません。');
+  put_('teams', t._row, Object.assign({}, t.raw, { 'アーカイブ': '' }));
+  log_(c, '班を元に戻す', t.id + ' ' + t.name);
   return null;
 };
 
