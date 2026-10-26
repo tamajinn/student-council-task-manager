@@ -66,15 +66,20 @@ summary::before{content:'▶';font-size:.7em;color:var(--mu)}details[open]>summa
 .cn{margin-left:auto;color:var(--mu);font-weight:400;font-size:.85em}
 .dbody{padding:0 14px 12px}
 .add{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.add input{flex:1 1 140px}
+.add button.sm{padding:3px 10px;background:var(--sf);color:var(--tx);border:1px solid var(--bd)}.add button.sm.arm{background:var(--er);border-color:var(--er);color:#fff}
 .add button,.end button{padding:6px 14px;border:1px solid var(--ac);background:var(--ac);color:var(--sf);border-radius:6px}
 .end{text-align:right;margin-top:16px}.end button.sec{background:none;color:var(--ac)}
 .warn{color:var(--wn);font-weight:700;font-size:.9em;margin:6px 0 0}
+#busy{display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.18);align-items:center;justify-content:center;cursor:progress}#busy.on{display:flex}
+.bp{background:var(--sf);color:var(--tx);border:1px solid var(--bd);border-radius:24px;padding:10px 22px;box-shadow:0 4px 16px rgba(0,0,0,.25);font-weight:700;display:flex;align-items:center;gap:10px}
+.sp{width:16px;height:16px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 #toast{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:20;max-width:90vw;background:var(--er);color:#fff;padding:8px 16px;border-radius:8px;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 </style></head>
 <body>
 <header><h1>生徒会執行部 タスク管理</h1>
 <div class="ctl"><span id="who"></span><label><input type="checkbox" id="big"> 会議モード</label></div></header>
 <div id="perm"></div><nav id="nav"></nav><main id="app"><p class="mu">読み込み中…</p></main><div id="md"></div><div id="toast"></div>
+<div id="busy" role="status" aria-live="polite"><div class="bp"><i class="sp"></i>実行中…</div></div>
 <script>
 const $=s=>document.querySelector(s),DAY=864e5;
 const n0=new Date(),TODAY=new Date(n0.getFullYear(),n0.getMonth(),n0.getDate());
@@ -88,17 +93,18 @@ const hhmm=d=>`${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const dayOf=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const AMP=String.fromCharCode(38),ESCM={'&':AMP+'amp;','<':AMP+'lt;','>':AMP+'gt;','"':AMP+'quot;',"'":AMP+'#39;'};
 const esc=s=>String(s==null?'':s).split('').map(c=>ESCM[c]||c).join('');
-let S=null,TEAMS=[],USERS={},PROJ=[],TASKS=[],ARCHP=[],ARCHT=[];
+let S=null,TEAMS=[],ARCHTEAMS=[],ARCHIDS=new Set(),USERS={},PROJ=[],TASKS=[],ARCHP=[],ARCHT=[],XPROJ=[],XTASK=[];
 let me='',view='home',team='',tlScope='all',pf='進行中',sel=null,fm=null,busy=false,tt=0,delArm='';
-const OPEN=new Set();
+const OPEN=new Set();let dq='';
 const ST={todo:'未着手',doing:'進行中',done:'完了'};
-const tn=id=>(TEAMS.find(t=>t[0]==id)||[0,'(不明な班)'])[1];
+const tn=id=>(TEAMS.concat(ARCHTEAMS).find(t=>t[0]==id)||[0,'(不明な班)'])[1],tnl=id=>tn(id)+(ARCHIDS.has(id)?'(アーカイブ済み)':'');
+const FREE='free',tl2=t=>t.team===''?'班なし':tn(t.team),tnf=id=>id===''?'班なし':tnl(id);
 const U=()=>USERS[me]||{n:'',g:[],r:{}};
 const isAdm=()=>(U().g||[]).some(g=>g=='会長'||g=='システム管理者');
 const roleIn=t=>U().r[t];
 const inTeam=t=>isAdm()||!!roleIn(t),isLead=t=>isAdm()||roleIn(t)=='班長';
-const canStatus=t=>isAdm()||roleIn(t.team)=='班長'||t.asg.includes(me),canArch=inTeam;
-const myTeams=()=>TEAMS.filter(x=>inTeam(x[0]));
+const canStatus=t=>isAdm()||roleIn(t.team)=='班長'||t.asg.includes(me),canArch=isLead,canArchT=t=>t.team===''?(isAdm()||t.cr==me):isLead(t.team);
+const myTeams=()=>TEAMS;   // タスク・プロジェクトは全員が全班に作成・編集できる
 const mem=t=>Object.entries(USERS).filter(([k,u])=>u.active&&u.r[t]);
 const clean=s=>String(s||'').trim();
 const names=t=>t.asg.map(a=>(USERS[a]||{n:a}).n).join('、')||'未設定';
@@ -108,16 +114,17 @@ function setTheme(v){const r=document.documentElement;if(v=='auto')r.removeAttri
 setTheme(TH());
 
 function notify(m){const e=$('#toast');e.textContent=m;e.style.display='block';clearTimeout(tt);tt=setTimeout(()=>e.style.display='none',6000)}
-function load(s){S=s;me=s.me;TEAMS=s.teams.map(t=>[t.id,t.name]);USERS={};
+function load(s){S=s;me=s.me;TEAMS=s.teams.filter(t=>!t.arch).map(t=>[t.id,t.name]);ARCHTEAMS=s.teams.filter(t=>t.arch).map(t=>[t.id,t.name]);ARCHIDS=new Set(ARCHTEAMS.map(t=>t[0]));USERS={};
  s.users.forEach(u=>USERS[u.email]={n:u.name,active:u.active,g:u.g,r:u.r});
  const cv=x=>{const a=PD(x.s),b=PD(x.e);return{...x,s:a.d,sh:a.h,e:b.d,eh:b.h}};
  const P=s.projects.map(cv),T=s.tasks.map(cv);
- PROJ=P.filter(p=>!p.arch);ARCHP=P.filter(p=>p.arch);TASKS=T.filter(t=>!t.arch);ARCHT=T.filter(t=>t.arch);
- if(!TEAMS.some(t=>t[0]==team))team=TEAMS[0]?TEAMS[0][0]:'';
+ PROJ=P.filter(p=>!p.arch&&!ARCHIDS.has(p.t));ARCHP=P.filter(p=>p.arch&&!ARCHIDS.has(p.t));XPROJ=P.filter(p=>!p.arch&&ARCHIDS.has(p.t));
+ TASKS=T.filter(t=>!t.arch&&!ARCHIDS.has(t.team));ARCHT=T.filter(t=>t.arch&&!ARCHIDS.has(t.team));XTASK=T.filter(t=>!t.arch&&ARCHIDS.has(t.team));
+ if(team!=FREE&&!TEAMS.some(t=>t[0]==team))team=TEAMS[0]?TEAMS[0][0]:'';
  if(sel&&!TASKS.some(t=>t.id==sel))sel=null}
 function call(a,p,ok,rf){if(busy){notify('処理中です。少し待ってからもう一度操作してください。');if(rf)render();return}
- busy=true;delArm='';document.body.style.cursor='progress';
- const done=()=>{busy=false;document.body.style.cursor=''};
+ busy=true;delArm='';$('#busy').classList.add('on');
+ const done=()=>{busy=false;$('#busy').classList.remove('on')};
  google.script.run.withSuccessHandler(r=>{done();if(!r.ok){notify(r.error);if(rf)render();return}load(r.state);if(ok)ok(r.res);render()})
   .withFailureHandler(e=>{done();notify('通信に失敗しました: '+(e&&e.message||e));if(rf)render()}).api(a,p||{})}
 
@@ -132,25 +139,29 @@ const pchip=p=>`<span class="chip ${p.st=='完了'?'done':p.st=='保留'?'':'doi
 function home(){
  const th=`<div class="tabs"><span class="mu">表示:</span>${[['auto','自動'],['light','ライト'],['dark','ダーク']].map(([k,v])=>`<button data-theme="${k}" class="${TH()==k?'on':''}">${v}</button>`).join('')}</div>`;
  return th+'<div class="grid">'+TEAMS.map(([id,name])=>{const ts=TASKS.filter(t=>t.team==id),c=k=>ts.filter(t=>t.st==k).length,ov=ts.filter(t=>flag(t)=='over').length;
-return `<section class="card click" data-go="${esc(id)}"><h3>${esc(name)}</h3><div class="cnt"><span>未着手 <b>${c('todo')}</b></span><span>進行中 <b>${c('doing')}</b></span><span>完了 <b>${c('done')}</b></span></div>${ov?`<p class="er">期限超過 ${ov}件</p>`:''}${PROJ.filter(p=>p.t==id&&p.st=='進行中').map(p=>`<div class="pj">${esc(p.n)}${bar(p)}</div>`).join('')}</section>`}).join('')+'</div>'}
-function tbl(ts){return ts.length?`<div class="wrap"><table><tr><th>タスク</th><th>プロジェクト</th><th>担当</th><th>期間</th><th>状態</th></tr>${ts.map(t=>`<tr data-task="${esc(t.id)}"><td>${esc(t.title)}</td><td>${pOf(t)?esc(pOf(t).n):'単発'}</td><td>${esc(names(t))}</td><td>${span(t)}</td><td>${chip(t)}</td></tr>`).join('')}</table></div>`:'<p class="mu">該当するタスクはありません。</p>'}
-const teamView=()=>`<div class="tabs">${TEAMS.map(([id,n])=>`<button data-team="${esc(id)}" class="${id==team?'on':''}">${esc(n)}</button>`).join('')}</div>${addBtn('task',team)}`+tbl(TASKS.filter(t=>t.team==team).sort((a,b)=>a.e-b.e));
+return `<section class="card click" data-go="${esc(id)}"><h3>${esc(name)}</h3><div class="cnt"><span>未着手 <b>${c('todo')}</b></span><span>進行中 <b>${c('doing')}</b></span><span>完了 <b>${c('done')}</b></span></div>${ov?`<p class="er">期限超過 ${ov}件</p>`:''}${PROJ.filter(p=>p.t==id&&p.st=='進行中').map(p=>`<div class="pj">${esc(p.n)}${bar(p)}</div>`).join('')}</section>`}).join('')+freeCard()+'</div>'}
+function freeCard(){const ts=TASKS.filter(t=>t.team===''),c=k=>ts.filter(t=>t.st==k).length,op=ts.filter(t=>!t.asg.length&&t.st!='done').length,ov=ts.filter(t=>flag(t)=='over').length;
+ return `<section class="card click" data-go="free"><h3>班なしタスク</h3><div class="cnt"><span>未着手 <b>${c('todo')}</b></span><span>進行中 <b>${c('doing')}</b></span><span>完了 <b>${c('done')}</b></span></div>${op?`<p><b>取り組む人を募集中 ${op}件</b></p>`:''}${ov?`<p class="er">期限超過 ${ov}件</p>`:''}</section>`}
+function tbl(ts){return ts.length?`<div class="wrap"><table><tr><th>タスク</th><th>プロジェクト</th><th>担当</th><th>期間</th><th>状態</th></tr>${ts.map(t=>`<tr data-task="${esc(t.id)}"><td>${esc(t.title)}</td><td>${pOf(t)?esc(pOf(t).n):'単発'}</td><td>${t.team===''&&!t.asg.length&&t.st!='done'?'<b>募集中</b>':esc(names(t))}</td><td>${span(t)}</td><td>${chip(t)}</td></tr>`).join('')}</table></div>`:'<p class="mu">該当するタスクはありません。</p>'}
+const teamView=()=>{const fr=team==FREE;return `<div class="tabs">${TEAMS.map(([id,n])=>`<button data-team="${esc(id)}" class="${id==team?'on':''}">${esc(n)}</button>`).join('')}<button data-team="free" class="${fr?'on':''}">班なし</button></div>${addBtn('task',team)}${fr?'':addBtn('proj',team)}`+(fr?'<p class="mu">どの班にも属さない単発のタスクです。誰でも追加でき、「取り組む」を押した人が担当者になります(担当は1人だけ)。</p>':'')+tbl(TASKS.filter(t=>fr?t.team==='':t.team==team).sort((a,b)=>a.e-b.e))};
 function pjView(){let h=`<div class="tabs">${['進行中','完了','保留'].map(x=>`<button data-pf="${x}" class="${x==pf?'on':''}">${x}</button>`).join('')}</div>${addBtn('proj')}`;
  return h+'<div class="grid">'+TEAMS.map(([id,name])=>{const ps=PROJ.filter(p=>p.t==id&&p.st==pf);return `<section class="card"><h3>${esc(name)}</h3>${ps.length?ps.map(p=>`<div class="pj click" data-pj="${esc(p.id)}"><b>${esc(p.n)}</b> <small>${span(p)}</small>${bar(p)}</div>`).join(''):'<p class="mu">該当するプロジェクトはありません。</p>'}</section>`}).join('')+'</div>'}
 
 /* ---- 資料 ---- */
 let df={scope:'',team:'',proj:'',task:'',n:'',u:''};
 const DSC={all:'執行部全体',team:'班全体',project:'プロジェクト',task:'タスク'},DKEY={team:'team',project:'proj',task:'task'};
+const ALLP=()=>PROJ.concat(XPROJ),ALLT=()=>TASKS.concat(XTASK);
 const docsOf=(sc,tg)=>S.docs.filter(d=>d.scope==sc&&d.target==tg);
 const dkey=d=>d.scope+'|'+d.target+'|'+d.u;
 const dlink=d=>`<a href="${esc(d.u)}" target="_blank" rel="noopener">${esc(d.n)}</a>`;
 const dline=(d,extra)=>`<div class="doc"><div class="dl">${dlink(d)} <small>${esc(d.by)}・${esc(d.at)}</small><button class="dd ${delArm==dkey(d)?'arm':''}" data-dds="${esc(d.scope)}" data-ddt="${esc(d.target)}" data-ddu="${esc(d.u)}">${delArm==dkey(d)?'もう一度押すと削除':'削除'}</button></div>${extra||''}</div>`;
 const dlist=ds=>ds.length?ds.map(d=>dline(d)).join(''):'<p class="mu">まだ資料がありません。</p>';
-const tdocs=ts=>ts.flatMap(t=>t.docs.map(d=>dline(d,`<small class="click" data-task="${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</small>`))).join('');
+const tclick=t=>ARCHIDS.has(t.team)?`<small class="mu">${esc(t.title)}</small>`:`<small class="click" data-task="${esc(t.id)}" style="text-decoration:underline">${esc(t.title)}</small>`;
+const tdocs=ts=>ts.flatMap(t=>t.docs.map(d=>dline(d,tclick(t)))).join('');
 const dcnt=ts=>ts.reduce((n,t)=>n+t.docs.length,0);
 const dsec=(k,title,n,inner)=>`<details data-k="${esc(k)}" ${OPEN.has(k)?'open':''}><summary>${title}<span class="cn">${n}件</span></summary><div class="dbody">${inner}</div></details>`;
 function docForm(){
- const opts={team:TEAMS.slice(),project:PROJ.map(p=>[p.id,tn(p.t)+' / '+p.n]),task:TASKS.slice().sort((a,b)=>a.e-b.e).map(t=>[t.id,tn(t.team)+' / '+t.title])};
+ const opts={team:TEAMS.concat(ARCHTEAMS).map(([i])=>[i,tnl(i)]),project:ALLP().map(p=>[p.id,tnl(p.t)+' / '+p.n]),task:ALLT().sort((a,b)=>a.e-b.e).map(t=>[t.id,tnf(t.team)+' / '+t.title])};
  const sc=['all'];['team','project','task'].forEach(k=>{if(opts[k].length)sc.push(k)});
  if(!sc.includes(df.scope))df.scope=sc[0];
  const k=DKEY[df.scope];let tg='';
@@ -159,15 +170,29 @@ function docForm(){
 function addDoc2(){const n=clean(df.n),u=clean(df.u),k=DKEY[df.scope];
  if(!n||!/^https?:\/\/\S+$/.test(u))return notify('資料名と、http か https で始まるURLを入力してください。');
  call('addDoc',{scope:df.scope,id:k?df[k]:'',name:n,url:u},()=>{df.n='';df.u=''})}
-function docsView(){let h=docForm();const ad=docsOf('all','');
+const teamDocs=(id,name)=>{const ps=ALLP().filter(p=>p.t==id),solo=ALLT().filter(t=>t.team==id&&!t.proj),td=docsOf('team',id);let total=td.length+dcnt(solo);
+ const inner=dsec('team:'+id,'班全体の資料',td.length,dlist(td))+ps.map(p=>{const pt=ALLT().filter(t=>t.proj==p.id),pd=docsOf('project',p.id),n=pd.length+dcnt(pt);total+=n;
+  return dsec('proj:'+p.id,'プロジェクト: '+esc(p.n),n,dlist(pd)+tdocs(pt))}).join('')+(solo.length?dsec('solo:'+id,'単発タスクの資料',dcnt(solo),tdocs(solo)||'<p class="mu">まだ資料がありません。</p>'):'');
+ return {n:total,html:dsec('t:'+id,esc(name),total,inner)}};
+/* 検索: 全資料に「どこの資料か」の説明をつけて、空白区切りの語をすべて含むものを探す */
+function docIndex(){const out=[],pj=ALLP();
+ S.docs.forEach(d=>{if(d.scope=='all')out.push({d,ctx:'執行部全体'});
+  else if(d.scope=='team')out.push({d,ctx:'班全体 / '+tnl(d.target)});
+  else if(d.scope=='project'){const p=pj.find(x=>x.id==d.target);out.push({d,ctx:'プロジェクト / '+(p?tnl(p.t)+' / '+p.n:'(不明)')})}});
+ ALLT().forEach(t=>t.docs.forEach(d=>{const p=pj.find(x=>x.id==t.proj);out.push({d,t,ctx:'タスク / '+tnf(t.team)+(p?' / '+p.n:'')+' / '+t.title})}));
+ return out}
+function docResults(){const q=dq.trim().toLowerCase();if(!q)return'';const ws=q.split(/\s+/);
+ const hit=docIndex().filter(x=>{const hay=(x.d.n+' '+x.d.u+' '+x.d.by+' '+x.ctx).toLowerCase();return ws.every(w=>hay.includes(w))});
+ return `<section class="card" style="margin-bottom:14px"><h3>検索結果 <small>${hit.length}件</small></h3>${hit.length?hit.map(x=>dline(x.d,`<small class="mu">${esc(x.ctx)}</small>`+(x.t&&!ARCHIDS.has(x.t.team)?` <small class="click" data-task="${esc(x.t.id)}" style="text-decoration:underline">タスクを開く</small>`:''))).join(''):'<p class="mu">一致する資料はありません。</p>'}</section>`}
+function updDocs(){const r=$('#dres'),a=$('#dacc');if(!r||!a)return;const q=dq.trim();r.innerHTML=docResults();a.hidden=!!q}
+function docsView(){const q=dq.trim();
+ let h=docForm()+`<div class="add" style="margin:0 0 12px"><input type="text" id="d-q" placeholder="資料を検索(資料名・URL・班・プロジェクト・タスク名。空白で複数の語)" value="${esc(dq)}" style="flex:1 1 280px"><button class="sm" data-dqc="1">クリア</button></div><div id="dres">${docResults()}</div><div id="dacc" ${q?'hidden':''}>`;
+ const ad=docsOf('all','');
  h+=dsec('all','執行部全体の資料',ad.length,dlist(ad));
- TEAMS.forEach(([id,name])=>{
-  const ps=PROJ.filter(p=>p.t==id),solo=TASKS.filter(t=>t.team==id&&!t.proj),td=docsOf('team',id);
-  let total=td.length+dcnt(solo);
-  const inner=dsec('team:'+id,'班全体の資料',td.length,dlist(td))+ps.map(p=>{const pt=TASKS.filter(t=>t.proj==p.id),pd=docsOf('project',p.id),n=pd.length+dcnt(pt);total+=n;
-   return dsec('proj:'+p.id,'プロジェクト: '+esc(p.n),n,dlist(pd)+tdocs(pt))}).join('')+(solo.length?dsec('solo:'+id,'単発タスクの資料',dcnt(solo),tdocs(solo)||'<p class="mu">まだ資料がありません。</p>'):'');
-  h+=dsec('t:'+id,esc(name),total,inner)});
- return h}
+ TEAMS.forEach(([id,name])=>{h+=teamDocs(id,name).html});
+ const fts=ALLT().filter(t=>t.team===''),fn=dcnt(fts);if(fts.length)h+=dsec('free','班なしタスクの資料',fn,tdocs(fts)||'<p class="mu">まだ資料がありません。</p>');
+ if(ARCHTEAMS.length){const ts=ARCHTEAMS.map(([id,name])=>teamDocs(id,name));h+=dsec('arch','アーカイブ済みの班',ts.reduce((n,x)=>n+x.n,0),ts.map(x=>x.html).join(''))}
+ return h+'</div>'}
 
 /* ---- タイムライン(班ごとの絞り込み) ---- */
 function timeline(){let sc=tlScope;
@@ -178,10 +203,10 @@ function timeline(){let sc=tlScope;
   +(pj?`<p><button class="sm" data-scope="team:${esc(pj.t)}">← ${esc(tn(pj.t))}のタイムラインに戻る</button></p>`:'')
   +addBtn('proj')+addBtn('task',pj?pj.t:(tm||team),pj?pj.id:'');
  if(pj){const out=TASKS.filter(t=>t.proj==pj.id&&outside(t)).length;
-  h+=`<section class="card" style="margin-bottom:12px"><h3>${esc(pj.n)} ${pchip(pj)}</h3><small>${esc(tn(pj.t))}・${span(pj)}</small><p style="margin:6px 0;white-space:pre-wrap">${esc(pj.d)}</p>${bar(pj)}${out?`<p class="warn">⚠ プロジェクトの期間(${span(pj)})からはみ出しているタスクが ${out} 件あります。</p>`:''}<p>${inTeam(pj.t)?`<button data-edit="proj|${esc(pj.id)}">編集</button> `:''}${canArch(pj.t)?`<button data-arch-p="${esc(pj.id)}">アーカイブ</button>`:''}</p></section>`}
+  h+=`<section class="card" style="margin-bottom:12px"><h3>${esc(pj.n)} ${pchip(pj)}</h3><small>${esc(tn(pj.t))}・${span(pj)}</small><p style="margin:6px 0;white-space:pre-wrap">${esc(pj.d)}</p>${bar(pj)}${out?`<p class="warn">⚠ プロジェクトの期間(${span(pj)})からはみ出しているタスクが ${out} 件あります。</p>`:''}<p><button data-edit="proj|${esc(pj.id)}">編集</button> ${canArch(pj.t)?`<button data-arch-p="${esc(pj.id)}">アーカイブ</button>`:''}</p></section>`}
  if(!ts.length)return h+'<p class="mu">表示するタスクがありません。</p>';
  const rows=[],grp=(name,g)=>{if(g.length){rows.push({gh:name});g.forEach(t=>rows.push({t}))}};
- if(all)TEAMS.forEach(([id,name])=>grp(name,ts.filter(t=>t.team==id)));
+ if(all){TEAMS.forEach(([id,name])=>grp(name,ts.filter(t=>t.team==id)));grp('班なし',ts.filter(t=>t.team===''))}
  else if(tm){PROJ.forEach(p=>grp(p.n,ts.filter(t=>t.proj==p.id)));grp('単発タスク',ts.filter(t=>!pOf(t)))}
  else ts.forEach(t=>rows.push({t}));
  const grouped=all||!!tm;
@@ -192,39 +217,39 @@ function timeline(){let sc=tlScope;
  let i=0,prev=null;
  rows.forEach(r=>{if(r.gh!==undefined){h+=`<div class="gh">${esc(r.gh)}</div>`;return}
   const t=r.t,s=L(+dayOf(t.s)),e=E(+dayOf(t.e)),pe=prev?E(+dayOf(prev.e)):0,cap=`${names(t)}・${span(t)}`;i++;
-  h+=`<div class="row" data-task="${esc(t.id)}"><div class="lb">${grouped?'':i+'. '}${esc(t.title)}${all?` <small>(${esc(tn(t.team))})</small>`:''}</div><div class="track">${td}${!grouped&&prev&&s>pe?`<i class="lk" style="left:${pe}%;width:${s-pe}%"></i>`:''}<i class="bar ${t.st} ${flag(t)=='over'?'over':''}" style="left:${s}%;width:${e-s}%"></i><span class="bl" style="${e>60?`right:${100-s}%`:`left:${e}%`}">${esc(cap)}</span></div></div>`;prev=t});
+  h+=`<div class="row" data-task="${esc(t.id)}"><div class="lb">${grouped?'':i+'. '}${esc(t.title)}${all?` <small>(${esc(tl2(t))})</small>`:''}</div><div class="track">${td}${!grouped&&prev&&s>pe?`<i class="lk" style="left:${pe}%;width:${s-pe}%"></i>`:''}<i class="bar ${t.st} ${flag(t)=='over'?'over':''}" style="left:${s}%;width:${e-s}%"></i><span class="bl" style="${e>60?`right:${100-s}%`:`left:${e}%`}">${esc(cap)}</span></div></div>`;prev=t});
  h+=`</div></div><p class="mu">赤い縦線は今日(${fmt(TODAY)})です。灰=未着手、青=進行中、緑=完了、赤い枠=期限超過${grouped?(all?'。班ごと':'。プロジェクトごと')+'に行をまとめています':'、点線=前のタスクが終わってから次が始まるまでの空き期間です'}。</p>`;
  if(pj)h+='<h3 style="margin-top:16px">タスク一覧</h3>'+tbl(ts.slice().sort((x,y)=>x.e-y.e));
  return h}
 
 function modal(){const t=TASKS.find(x=>x.id==sel);if(!t)return'';const p=pOf(t),cs=canStatus(t);
-return `<div class="ov" id="ov"><div class="mc"><h2>${esc(t.title)}</h2><p class="mu">${esc(tn(t.team))}・${p?esc(p.n):'単発タスク'}・優先度 ${esc(t.pri)}<br>担当: ${esc(names(t))}<br>期間: ${span(t)} ${flag(t)=='over'?'<span class="chip over">期限超過</span>':''}</p>
+return `<div class="ov" id="ov"><div class="mc"><h2>${esc(t.title)}</h2><p class="mu">${esc(tl2(t))}・${p?esc(p.n):'単発タスク'}・優先度 ${esc(t.pri)}<br>担当: ${t.team===''&&!t.asg.length?'募集中(「取り組む」を押すと、あなたが担当者になります)':esc(names(t))}<br>期間: ${span(t)} ${flag(t)=='over'?'<span class="chip over">期限超過</span>':''}</p>
 ${t.desc?`<p style="white-space:pre-wrap">${esc(t.desc)}</p>`:''}${outside(t)?`<p class="warn">⚠ このタスクの期間は、プロジェクトの期間(${span(p)})からはみ出しています。</p>`:''}
-<label>ステータス <select id="st" ${cs?'':'disabled'}>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==t.st?'selected':''}>${v}</option>`).join('')}</select></label>${cs?'':' <small>担当者、その班の班長、会長・システム管理者のみ更新できます。</small>'}
+<label>ステータス <select id="st" ${cs?'':'disabled'}>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==t.st?'selected':''}>${v}</option>`).join('')}</select></label>${cs?'':(t.team===''?' <small>取り組んでいる人と会長・システム管理者のみ更新できます。</small>':' <small>担当者、その班の班長、会長・システム管理者のみ更新できます。</small>')}
 <h4>資料</h4>${dlist(t.docs)}
 <div class="add"><input type="text" id="dn" placeholder="資料名" maxlength="100"><input type="url" id="du" placeholder="https://..."><button id="da">資料を追加</button></div>
-<div class="end">${inTeam(t.team)?`<button class="sec" data-edit="task|${esc(t.id)}">編集</button> `:''}${canArch(t.team)?`<button class="sec" data-arch-t="${esc(t.id)}">アーカイブ</button> `:''}<button class="sec" id="cl">閉じる</button></div></div></div>`}
+<div class="end">${t.team===''&&t.st!='done'?(!t.asg.length?`<button class="pri" data-take="${esc(t.id)}">取り組む</button> `:(t.asg.includes(me)||isAdm()?`<button class="sec" data-leave="${esc(t.id)}">取り組みをやめる</button> `:'')):''}<button class="sec" data-edit="task|${esc(t.id)}">編集</button> ${canArchT(t)?`<button class="sec" data-arch-t="${esc(t.id)}">アーカイブ</button> `:''}<button class="sec" id="cl">閉じる</button></div></div></div>`}
 
 /* ---- 追加・編集フォーム ---- */
-const addBtn=(k,t='',p='')=>(t?inTeam(t):myTeams().length)?`<button class="pri" data-add="${k}" data-t="${esc(t)}" data-p="${esc(p)}">${k=='task'?'+ タスクを追加':'+ プロジェクトを追加'}</button>`:'';
+const addBtn=(k,t='',p='')=>(t||myTeams().length)?`<button class="pri" data-add="${k}" data-t="${esc(t)}" data-p="${esc(p)}">${k=='task'?'+ タスクを追加':'+ プロジェクトを追加'}</button>`:'';
 const V=id=>{const e=document.getElementById(id);return e?e.value:''};
-function grab(){if(!fm)return;fm.n=V('f-n');fm.d=V('f-d');fm.s=V('f-s');fm.e=V('f-e');fm.t=V('f-t');fm.p=V('f-p');fm.r=V('f-r');fm.st=V('f-st')||fm.st;
+function grab(){if(!fm)return;fm.n=V('f-n');fm.d=V('f-d');fm.s=V('f-s');fm.e=V('f-e');fm.t=V('f-t')||fm.t;fm.p=V('f-p');fm.r=V('f-r');fm.st=V('f-st')||fm.st;
  fm.sk=V('f-sk')||fm.sk;fm.ek=V('f-ek')||fm.ek;fm.sh=V('f-sh');fm.eh=V('f-eh');
  if(fm.sk=='set'&&!fm.sh)fm.sh='09:00';if(fm.ek=='set'&&!fm.eh)fm.eh='18:00';
  fm.a=[...document.querySelectorAll('[name=f-a]:checked')].map(x=>x.value);
  if(!fm.id)fm.docs=[...document.querySelectorAll('.fdr')].map(r=>({n:r.querySelector('.fdn').value,u:r.querySelector('.fdu').value}))}
-function formModal(){if(!fm)return'';const ts=myTeams(),tid=fm.t||(ts[0]&&ts[0][0]),isP=fm.k=='proj';
- const tsel=`<label>担当班</label><select id="f-t" data-refresh="1">${ts.map(([i,n])=>`<option value="${esc(i)}" ${i==tid?'selected':''}>${esc(n)}</option>`).join('')}</select>`;
+function formModal(){if(!fm)return'';const ts=myTeams(),tid=fm.t||(ts[0]&&ts[0][0]),isP=fm.k=='proj',free=tid==FREE&&!isP;
+ const tsel=free&&fm.id?`<label>担当班</label><p class="mu">なし(班なしタスク)</p>`:`<label>担当班</label><select id="f-t" data-refresh="1">${ts.map(([i,n])=>`<option value="${esc(i)}" ${i==tid?'selected':''}>${esc(n)}</option>`).join('')}${(!isP&&!fm.id)?`<option value="free" ${free?'selected':''}>班なし(誰でも取り組める単発タスク)</option>`:''}</select>`;
  const tmf=(lab,id,dv,k,hv)=>`<label>${lab}</label><div class="tm"><input type="date" id="f-${id}" value="${esc(dv)}"><select id="f-${id}k" data-refresh="1"><option value="none" ${k=='set'?'':'selected'}>時刻なし</option><option value="set" ${k=='set'?'selected':''}>時刻を指定</option></select><input type="time" id="f-${id}h" value="${esc(hv||'')}" ${k=='set'?'':'disabled'}></div>`;
  const dt=tmf('開始日','s',fm.s||iso(TODAY),fm.sk,fm.sh)+tmf(isP?'終了日':'期限','e',fm.e||iso(new Date(+TODAY+10*DAY)),fm.ek,fm.eh);
  const ta=lab=>`<label>${lab}</label><textarea id="f-d" rows="3" maxlength="1000">${esc(fm.d||'')}</textarea>`;
  const b=isP?`<label>プロジェクト名</label><input type="text" id="f-n" maxlength="100" value="${esc(fm.n||'')}">${tsel}${ta('説明・目的')}${dt}${fm.id?`<label>状態</label><select id="f-st">${['進行中','完了','保留'].map(x=>`<option ${x==(fm.st||'進行中')?'selected':''}>${x}</option>`).join('')}</select>`:''}`
- :`<label>タイトル</label><input type="text" id="f-n" maxlength="100" value="${esc(fm.n||'')}">${tsel}${ta('説明')}<label>プロジェクト</label><select id="f-p"><option value="">なし(単発)</option>${PROJ.filter(p=>p.t==tid||p.id==fm.p).map(p=>`<option value="${esc(p.id)}" ${p.id==fm.p?'selected':''}>${esc(p.n)}</option>`).join('')}</select><label>担当者</label><div class="ck">${mem(tid).map(([k,u])=>`<label><input type="checkbox" name="f-a" value="${esc(k)}" ${(fm.a||[]).includes(k)?'checked':''}> ${esc(u.n)}</label>`).join('')||'<small>この班にはまだメンバーがいません</small>'}</div>${dt}<label>優先度</label><select id="f-r">${['高','中','低'].map(x=>`<option ${x==(fm.r||'中')?'selected':''}>${x}</option>`).join('')}</select>`;
+ :`<label>タイトル</label><input type="text" id="f-n" maxlength="100" value="${esc(fm.n||'')}">${tsel}${ta('説明')}${free?'<p class="mu">担当者は、タスクの「取り組む」ボタンを押した人になります(1人だけ)。</p>':`<label>プロジェクト</label><select id="f-p"><option value="">なし(単発)</option>${PROJ.filter(p=>p.t==tid||p.id==fm.p).map(p=>`<option value="${esc(p.id)}" ${p.id==fm.p?'selected':''}>${esc(p.n)}</option>`).join('')}</select><label>担当者</label><div class="ck">${mem(tid).map(([k,u])=>`<label><input type="checkbox" name="f-a" value="${esc(k)}" ${(fm.a||[]).includes(k)?'checked':''}> ${esc(u.n)}</label>`).join('')||'<small>この班にはまだメンバーがいません</small>'}</div>`}${dt}<label>優先度</label><select id="f-r">${['高','中','低'].map(x=>`<option ${x==(fm.r||'中')?'selected':''}>${x}</option>`).join('')}</select>`;
  const docsBlk=fm.id?'':`<label>資料(任意・いくつでも)</label>${(fm.docs||[]).map((d,i)=>`<div class="add fdr"><input type="text" class="fdn" placeholder="資料名" maxlength="100" value="${esc(d.n)}"><input type="url" class="fdu" placeholder="https://..." value="${esc(d.u)}"><button class="sm" data-fdrm="${i}">削除</button></div>`).join('')}<div class="add"><button class="sm" data-fdadd="1">+ 資料の行を追加</button></div>`;
  return `<div class="ov" id="fov"><div class="mc fm"><h2>${isP?'プロジェクト':'タスク'}を${fm.id?'編集':'追加'}</h2>${b}${docsBlk}${fm.err?`<p class="er">${esc(fm.err)}</p>`:''}<div class="end"><button class="sec" id="fc">キャンセル</button> <button class="pri" id="fs">${fm.id?'保存する':'追加する'}</button></div></div></div>`}
 const tkey=(x,end)=>x.length>10?x:x+(end?' 23:59':' 00:00');
 function submit(){grab();const t=fm.t||(myTeams()[0]||[])[0],err=m=>{fm.err=m;render()};
- if(!t||!inTeam(t))return err('この班には追加・編集できません。');
+ if(!t)return err('担当班を選んでください。');
  const n=clean(fm.n);if(!n)return err('名前を入力してください。');
  if(!fm.s||!fm.e)return err('開始日と終了日を入力してください。');
  if((fm.sk=='set'&&!fm.sh)||(fm.ek=='set'&&!fm.eh))return err('時刻を指定する場合は、時刻を入力してください。');
@@ -235,7 +260,7 @@ function submit(){grab();const t=fm.t||(myTeams()[0]||[])[0],err=m=>{fm.err=m;re
  if(wasNew){const seen={};for(const d of (fm.docs||[])){const dn=clean(d.n),du=clean(d.u);if(!dn&&!du)continue;
   if(!dn||!/^https?:\/\/\S+$/.test(du))return err('資料は、資料名と、http か https で始まるURLの両方を入力してください。');
   if(seen[du])return err('同じURLの資料が重複しています。');seen[du]=1;nd.push({name:dn,url:du})}}
- const p=isP?{id:fm.id||'',n,d:clean(fm.d),t,s,e,st:fm.st||'進行中'}:{id:fm.id||'',title:n,desc:clean(fm.d),team:t,proj:fm.p||'',asg:fm.a||[],s,e,pri:fm.r||'中'};
+ const fr=!isP&&t==FREE,p=isP?{id:fm.id||'',n,d:clean(fm.d),t,s,e,st:fm.st||'進行中'}:{id:fm.id||'',title:n,desc:clean(fm.d),team:fr?'':t,free:fr,proj:fr?'':(fm.p||''),asg:fr?[]:(fm.a||[]),s,e,pri:fm.r||'中'};
  if(wasNew)p.docs=nd;
  call(isP?'saveProject':'saveTask',p,res=>{if(isP&&wasNew&&res&&res.id){tlScope='proj:'+res.id;view='tl'}fm=null})}
 function addDoc(){const t=TASKS.find(z=>z.id==sel),n=clean(V('dn')),u=clean(V('du'));if(!t)return;
@@ -245,20 +270,21 @@ function addDoc(){const t=TASKS.find(z=>z.id==sel),n=clean(V('dn')),u=clean(V('d
 
 function mgView(){let h='';
  if(isAdm()){
-  h+=`<section class="card" style="margin-bottom:14px"><h3>班の追加と名称</h3>${TEAMS.map(([i,n])=>`<div class="add"><input type="text" id="rn-${esc(i)}" value="${esc(n)}" maxlength="30"><button data-ren="${esc(i)}">名称を保存</button></div>`).join('')}<div class="add"><input type="text" id="mt-n" placeholder="新しい班の名前" maxlength="30"><button id="mt-add">班を追加</button></div></section>`;
+  h+=`<section class="card" style="margin-bottom:14px"><h3>班の追加と名称</h3>${TEAMS.map(([i,n])=>`<div class="add"><input type="text" id="rn-${esc(i)}" value="${esc(n)}" maxlength="30"><button data-ren="${esc(i)}">名称を保存</button><button class="sm ${delArm=='team:'+i?'arm':''}" data-arch-team="${esc(i)}">${delArm=='team:'+i?'もう一度押すとアーカイブ':'班をアーカイブ'}</button></div>`).join('')}<div class="add"><input type="text" id="mt-n" placeholder="新しい班の名前" maxlength="30"><button id="mt-add">班を追加</button></div></section>`;
   h+=`<section class="card" style="margin-bottom:14px"><h3>メンバーの追加</h3><div class="add"><input type="text" id="mb-e" placeholder="学校のメールアドレス"><input type="text" id="mb-n" placeholder="名前" maxlength="50"><button id="mb-add">メンバーを追加</button></div></section>`;
-  h+=`<section class="card" style="margin-bottom:14px"><h3>メンバーの階層</h3><div class="wrap"><table><tr><th>メンバー</th><th>有効</th><th>全体</th>${TEAMS.map(([i,n])=>`<th>${esc(n)}</th>`).join('')}</tr>${Object.entries(USERS).map(([k,u])=>`<tr class="${u.active?'':'off'}"><td>${esc(u.n)}<br><small>${esc(k)}</small></td><td><input type="checkbox" data-act="${esc(k)}" ${u.active?'checked':''}></td><td><select data-g="${esc(k)}">${['なし','会長','副会長','システム管理者'].map(x=>`<option ${x==((u.g||[])[0]||'なし')?'selected':''}>${x}</option>`).join('')}</select></td>${TEAMS.map(([i])=>`<td><select data-r="${esc(k)}|${esc(i)}">${['なし','班員','班長'].map(x=>`<option ${x==(u.r[i]||'なし')?'selected':''}>${x}</option>`).join('')}</select></td>`).join('')}</tr>`).join('')}</table></div></section>`}
- const lt=S.cfg.leadEditMembers&&!isAdm()?TEAMS.filter(([i])=>roleIn(i)=='班長'):[];
- if(lt.length)h+=`<section class="card" style="margin-bottom:14px"><h3>班員の編成</h3>${lt.map(([i,n])=>`<h4 style="margin:12px 0 4px">${esc(n)}</h4>${mem(i).map(([k,u])=>`<div class="mini"><span>${esc(u.n)}(${esc(u.r[i])})</span>${u.r[i]=='班員'?`<button data-rm="${esc(i)}|${esc(k)}">外す</button>`:''}</div>`).join('')}<div class="add"><select id="am-${esc(i)}">${Object.entries(USERS).filter(([k,u])=>u.active&&!u.r[i]&&!(u.g||[]).length).map(([k,u])=>`<option value="${esc(k)}">${esc(u.n)}</option>`).join('')}</select><button data-addm="${esc(i)}">班員に追加</button></div>`).join('')}</section>`;
- const ap=ARCHP.filter(p=>canArch(p.t)),at=ARCHT.filter(t=>canArch(t.team)&&!t.via);
- h+=`<section class="card"><h3>アーカイブ</h3>${ap.length+at.length?ap.map(p=>`<div class="mini"><span>プロジェクト: ${esc(p.n)} <small>(${esc(tn(p.t))})</small></span><button data-rest-p="${esc(p.id)}">元に戻す</button></div>`).join('')+at.map(t=>`<div class="mini"><span>タスク: ${esc(t.title)} <small>(${esc(tn(t.team))})</small></span><button data-rest-t="${esc(t.id)}">元に戻す</button></div>`).join(''):'<p class="mu">アーカイブしたプロジェクトとタスクはありません。</p>'}</section>`;
+  h+=`<section class="card" style="margin-bottom:14px"><h3>メンバーの階層</h3><div class="wrap"><table><tr><th>メンバー</th><th>有効</th><th>全体</th>${TEAMS.map(([i,n])=>`<th>${esc(n)}</th>`).join('')}</tr>${Object.entries(USERS).map(([k,u])=>`<tr class="${u.active?'':'off'}"><td>${esc(u.n)}<br><small>${esc(k)}</small></td><td><input type="checkbox" data-act="${esc(k)}" ${u.active?'checked':''}></td><td><select data-g="${esc(k)}">${['なし','会長','システム管理者'].map(x=>`<option ${x==((u.g||[])[0]||'なし')?'selected':''}>${x}</option>`).join('')}</select></td>${TEAMS.map(([i])=>`<td><select data-r="${esc(k)}|${esc(i)}">${['なし','班員','班長'].map(x=>`<option ${x==(u.r[i]||'なし')?'selected':''}>${x}</option>`).join('')}</select></td>`).join('')}</tr>`).join('')}</table></div></section>`}
+ const lt=!isAdm()?TEAMS.filter(([i])=>roleIn(i)=='班長'):[];
+ if(lt.length)h+=`<section class="card" style="margin-bottom:14px"><h3>班員の編成</h3>${lt.map(([i,n])=>`<h4 style="margin:12px 0 4px">${esc(n)}</h4>${mem(i).map(([k,u])=>`<div class="mini"><span>${esc(u.n)}(${esc(u.r[i])})</span>${u.r[i]=='班員'?`<button data-rm="${esc(i)}|${esc(k)}">外す</button>`:''}</div>`).join('')}<div class="add"><select id="am-${esc(i)}">${Object.entries(USERS).filter(([k,u])=>u.active&&!u.r[i]).map(([k,u])=>`<option value="${esc(k)}">${esc(u.n)}</option>`).join('')}</select><button data-addm="${esc(i)}">班員に追加</button></div>`).join('')}</section>`;
+ const ap=ARCHP.filter(p=>canArch(p.t)),at=ARCHT.filter(t=>canArchT(t)&&!t.via);
+ h+=`<section class="card"><h3>アーカイブ</h3>${ap.length+at.length+(isAdm()?ARCHTEAMS.length:0)?(isAdm()?ARCHTEAMS.map(([i,n])=>`<div class="mini"><span>班: ${esc(n)}</span><button data-rest-team="${esc(i)}">元に戻す</button></div>`).join(''):'')+ap.map(p=>`<div class="mini"><span>プロジェクト: ${esc(p.n)} <small>(${esc(tn(p.t))})</small></span><button data-rest-p="${esc(p.id)}">元に戻す</button></div>`).join('')+at.map(t=>`<div class="mini"><span>タスク: ${esc(t.title)} <small>(${esc(tl2(t))})</small></span><button data-rest-t="${esc(t.id)}">元に戻す</button></div>`).join(''):'<p class="mu">アーカイブしたプロジェクトとタスクはありません。</p>'}</section>`;
  return h}
 
 function render(){if(!S)return;const u=U(),g=(u.g||[]).join('・');
  $('#who').textContent=u.n+(g?`(${g})`:'');
- let pm;if(isAdm())pm=`${u.n}さん(${g}): 全班のプロジェクト・タスクの作成・編集・アーカイブ、資料の追加と削除、メンバー・班・役割の管理ができます。`;
+ let pm;if(isAdm())pm=`${u.n}さん(${g}): 全班のプロジェクト・タスクの作成と編集、資料の追加と削除、メンバー・班(アーカイブを含む)・役割の管理ができます。`;
  else{const rs=Object.entries(u.r).map(([t,r])=>`${tn(t)}では${r}`).join('、');
-  pm=`${u.n}さん: ${g?g+'・':''}${rs||'班への所属なし'}。全班を閲覧できます。所属班のプロジェクト・タスクの作成・編集・アーカイブ、自分が担当のタスクの状態更新、資料の追加と削除ができます。`+(Object.values(u.r).includes('班長')?'班長は、自班の班員の追加と外しもできます。':'')}
+  pm=`${u.n}さん: ${g?g+'・':''}${rs||'班への所属なし'}。全班を閲覧できます。全班のプロジェクト・タスクの作成と編集、自分が担当のタスクの状態更新、資料の追加と削除ができます。`+(Object.values(u.r).includes('班長')?'班長は所属班のタスク・プロジェクトのアーカイブと、班員の追加・削除もできます。':'')}
+ pm+=' どの班にも属さない「班なしタスク」は、誰でも作成でき、「取り組む」を押すと担当者になります。';
  $('#perm').textContent=(S.imp?'【代行表示中(テスト用)】 ':'')+pm;
  $('#nav').innerHTML=[['home','ホーム'],['team','班別一覧'],['pj','プロジェクト'],['tl','タイムライン'],['mine','自分のタスク'],['docs','資料'],['mg','管理']].map(([k,v])=>`<button data-v="${k}" class="${k==view?'on':''}">${v}</button>`).join('');
  $('#app').innerHTML={home,team:teamView,pj:pjView,tl:timeline,docs:docsView,mg:mgView,mine:()=>tbl(TASKS.filter(t=>t.asg.includes(me)).sort((a,b)=>a.e-b.e))}[view]();
@@ -272,13 +298,18 @@ document.addEventListener('click',e=>{const t=e.target,b=t.closest('button'),d=b
  if(t.id=='d-add')return addDoc2();
  if(d.dds){const k=d.dds+'|'+d.ddt+'|'+d.ddu;if(delArm!=k){delArm=k;return render()}delArm='';return call('deleteDoc',{scope:d.dds,id:d.ddt,url:d.ddu})}
  if(d.theme){setTheme(d.theme);return render()}
+ if(d.dqc){dq='';return render()}
+ if(d.archTeam){const k='team:'+d.archTeam;if(delArm!=k){delArm=k;return render()}delArm='';return call('archiveTeam',{id:d.archTeam})}
+ if(d.restTeam)return call('restoreTeam',{id:d.restTeam});
  if(d.fdadd){grab();fm.docs=(fm.docs||[]).concat([{n:'',u:''}]);return render()}
  if(d.fdrm!==undefined){grab();fm.docs.splice(+d.fdrm,1);return render()}
  if(d.add){fm={k:d.add,t:d.t||'',p:d.p||'',sk:'none',ek:'none',docs:[{n:'',u:''}]};return render()}
  if(d.edit){const[k,id]=d.edit.split('|');
-  if(k=='task'){const z=TASKS.find(y=>y.id==id);if(z&&inTeam(z.team)){sel=null;fm={k:'task',id:z.id,n:z.title,d:z.desc,t:z.team,p:z.proj,a:z.asg.slice(),s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',r:z.pri}}}
-  else{const z=PROJ.find(y=>y.id==id);if(z&&inTeam(z.t))fm={k:'proj',id:z.id,n:z.n,d:z.d,t:z.t,s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',st:z.st}}
+  if(k=='task'){const z=TASKS.find(y=>y.id==id);if(z){sel=null;fm={k:'task',id:z.id,n:z.title,d:z.desc,t:z.team===''?FREE:z.team,p:z.proj,a:z.asg.slice(),s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',r:z.pri}}}
+  else{const z=PROJ.find(y=>y.id==id);if(z)fm={k:'proj',id:z.id,n:z.n,d:z.d,t:z.t,s:iso(z.s),sk:z.sh?'set':'none',sh:z.sh?hhmm(z.s):'',e:iso(z.e),ek:z.eh?'set':'none',eh:z.eh?hhmm(z.e):'',st:z.st}}
   return render()}
+ if(d.take)return call('takeTask',{id:d.take});
+ if(d.leave)return call('leaveTask',{id:d.leave});
  if(d.archT)return call('archive',{kind:'task',id:d.archT},()=>{sel=null});
  if(d.archP)return call('archive',{kind:'project',id:d.archP},()=>{tlScope='all'});
  if(d.restT)return call('restore',{kind:'task',id:d.restT});
@@ -304,7 +335,7 @@ document.addEventListener('change',e=>{const t=e.target;
  if(t.dataset.act!==undefined)return call('setActive',{email:t.dataset.act,active:t.checked},null,1);
  if(t.dataset.g!==undefined)return call('setGlobal',{email:t.dataset.g,role:t.value},null,1);
  if(t.dataset.r!==undefined){const[k,tm]=t.dataset.r.split('|');return call('setTeamRole',{email:k,team:tm,role:t.value},null,1)}});
-document.addEventListener('input',e=>{if(e.target.id=='d-n')df.n=e.target.value;if(e.target.id=='d-u')df.u=e.target.value});
+document.addEventListener('input',e=>{if(e.target.id=='d-q'){dq=e.target.value;updDocs()}if(e.target.id=='d-n')df.n=e.target.value;if(e.target.id=='d-u')df.u=e.target.value});
 document.addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.k;if(k){if(e.target.open)OPEN.add(k);else OPEN.delete(k)}},true);
 
 if(typeof google==='undefined'||!google.script)$('#app').innerHTML='<p class="mu">この画面は Google Apps Script のWebアプリとして開いてください。</p>';
