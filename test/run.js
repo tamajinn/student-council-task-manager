@@ -237,6 +237,54 @@ ng('班なしタスクへの不正なURLの資料', api('addDoc', { scope: 'task
 okm('誰でも班なしタスクに資料を追加', api('addDoc', { scope: 'task', id: fid, name: '写真', url: 'https://example.com/free2' }));
 assert.strictEqual(fst(fid).docs.length, 2);
 
+// 先生(管理者と同じ権限)
+as('');
+okm('管理者: 先生を任命', api('setGlobal', { email: 'u6@example.com', role: '先生' }));
+assert.strictEqual(JSON.stringify(api('getState').state.users.find(u => u.email === 'u6@example.com').g), '["先生"]');
+as('u6');
+r = okm('先生: 他の班にタスクを作成', api('saveTask', { title: '先生のタスク', team: 'b', s: '2026-11-01', e: '2026-11-03', asg: ['u3@example.com'] }));
+okm('先生: 他の班のタスクをアーカイブ', api('archive', { kind: 'task', id: r.res.id }));
+okm('先生: アーカイブしたタスクを元に戻す', api('restore', { kind: 'task', id: r.res.id }));
+okm('先生: 班を追加(管理者の操作)', api('addTeam', { name: '先生の班' }));
+okm('先生: 全体権限を変更(管理者の操作)', api('setGlobal', { email: 'u1@example.com', role: '会長' }));
+as('u4');
+ng('班員は班を追加できない(先生との違い)', api('addTeam', { name: 'x' }), /会長とシステム管理者/);
+as('');
+okm('管理者: 先生を外す', api('setGlobal', { email: 'u6@example.com', role: 'なし' }));
+ng('先生の役職は存在しない役職では指定できない', api('setGlobal', { email: 'u6@example.com', role: '先輩' }), /役割が正しくありません/);
+
+// アーカイブしたタスクの表示と資料
+as('u4');
+r = okm('班員: タスク作成(アーカイブ確認用)', api('saveTask', { title: 'アーカイブ確認', team: 'a', s: '2026-11-01', e: '2026-11-03', asg: ['u4@example.com'], docs: [{ name: '確認用資料', url: 'https://example.com/arch1' }] }));
+muts++;   // 資料つきの作成は、ログが2行になる
+const aid = r.res.id;
+as('u2');   // 班長
+okm('班長: タスクをアーカイブ', api('archive', { kind: 'task', id: aid }));
+as('u5');   // 別の班の班員
+r = ok('別の班の班員にも、アーカイブ済みのタスクが見える', api('getState'));
+assert.ok(T(r, aid).arch); assert.strictEqual(T(r, aid).docs.length, 1);   // 資料も付いてくる
+okm('アーカイブ済みのタスクに資料を追加', api('addDoc', { scope: 'task', id: aid, name: '追加資料', url: 'https://example.com/arch2' }));
+assert.strictEqual(T(api('getState'), aid).docs.length, 2);
+okm('アーカイブ済みのタスクの資料を削除', api('deleteDoc', { scope: 'task', id: aid, url: 'https://example.com/arch2' }));
+ng('アーカイブ済みのタスクの状態は変更できない', api('setTaskStatus', { id: aid, st: 'doing' }), /見つかりません/);
+ng('実在しないタスクには資料を追加できない', api('addDoc', { scope: 'task', id: 'tzzzz', name: 'x', url: 'https://example.com/zz' }), /見つかりません/);
+
+// タスクの並び替え(本人の表示だけ)
+as('u4');
+r = ok('並び順を保存', api('saveOrder', { list: 'mine', ids: ['t5', 't13', 't7'] }));
+assert.strictEqual(JSON.stringify(r.state.ord.mine), '["t5","t13","t7"]');
+r = ok('並び順を上書き', api('saveOrder', { list: 'mine', ids: ['t7', 't5'] }));
+assert.strictEqual(JSON.stringify(r.state.ord.mine), '["t7","t5"]');
+ok('別の一覧の並び順', api('saveOrder', { list: 'team:a', ids: ['t13', 't5'] }));
+assert.strictEqual(JSON.stringify(api('getState').state.ord['team:a']), '["t13","t5"]');
+as('u2');
+assert.strictEqual(JSON.stringify(api('getState').state.ord), '{}');   // 他の人の並び順は見えない・影響しない
+as('u4');
+ng('不正な一覧名', api('saveOrder', { list: '../x', ids: ['t1'] }), /正しくありません/);
+r = ok('空の並び順で解除', api('saveOrder', { list: 'mine', ids: [] }));
+assert.strictEqual(r.state.ord.mine, undefined);
+assert.ok(env.__sheets['タスク並び'].grid.length >= 3);
+
 // 管理画面の保護
 as('');
 okm('管理者: 会長の役割を外す', api('setGlobal', { email: 'u1@example.com', role: 'なし' }));
