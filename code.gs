@@ -1,12 +1,11 @@
 /**
  * 生徒会執行部 タスク管理システム 第1版(MVP)
  * スプレッドシートにバインドしたApps Scriptとして動かします。
- * 仕様: 設計書 12・14・15章(確定仕様)
  */
 
 const TZ = 'Asia/Tokyo';
-const G_ADMIN = ['会長', 'システム管理者'];   // 全班に対する編集権限
-const G_ALL = ['会長', 'システム管理者'];
+const G_ADMIN = ['会長', 'システム管理者', '先生'];   // すべての権限を持つ役職(管理者と同じ扱い)
+const G_ALL = ['会長', 'システム管理者', '先生'];
 const ST_J = { todo: '未着手', doing: '進行中', done: '完了' };
 const ST_K = { '未着手': 'todo', '進行中': 'doing', '完了': 'done' };
 const PROJ_ST = ['進行中', '完了', '保留'];
@@ -21,6 +20,7 @@ const SHEETS = {
   tasks:     { n: 'タスク',       c: ['タスクID', 'タイトル', '説明', '担当班', 'プロジェクトID', '開始日', '期限', 'ステータス', '優先度', '重要フラグ', 'アーカイブ', '作成者', '作成日時', '更新日時'] },
   assignees: { n: '担当者',       c: ['タスクID', 'メールアドレス'] },
   docs:      { n: '資料リンク',   c: ['タスクID', '資料名', 'URL', '追加者', '追加日時', '区分', '対象ID'] }, // 区分: task/project/team/all(空欄は旧形式でタスク扱い)
+  order:     { n: 'タスク並び',   c: ['メールアドレス', '一覧', 'タスクID', '順番'] },   // 各ユーザーが並び替えたタスクの順番(本人の表示だけに使う)
   log:       { n: '操作ログ',     c: ['日時', '操作者', '操作内容', '対象'] }
 };
 
@@ -145,12 +145,22 @@ function canStatus_(u, t) { return u.admin || u.r[t.team] === '班長' || t.asg.
 function deny_(m) { throw new Error(m || '権限がありません。'); }
 
 /* ---------- 画面に渡すデータ ---------- */
+// 本人が並び替えたタスクの順番 { 一覧名: [タスクID, ...] }
+function ordFor_(email) {
+  const out = {};
+  rows_('order').forEach(function (r) {
+    if (String(r['メールアドレス']).toLowerCase() !== email) return;
+    (out[r['一覧']] = out[r['一覧']] || []).push([Number(r['順番']), r['タスクID']]);
+  });
+  Object.keys(out).forEach(function (k) { out[k] = out[k].sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; }); });
+  return out;
+}
 function snapshot_(c) {
   const st = c.st;
   const dv = function (d) { return { scope: d.scope, target: d.target, n: d.n, u: d.u, by: nameOf(String(d.by).toLowerCase()), at: (+d.at.slice(5, 7)) + '/' + (+d.at.slice(8, 10)) }; };
   const nameOf = function (e) { const m = st.members.find(function (x) { return x.email === e; }); return m && m.name ? m.name : e; };
   return {
-    imp: c.imp, me: c.email,
+    imp: c.imp, me: c.email, ord: ordFor_(c.email),
     teams: st.teams.map(function (t) { return { id: t.id, name: t.name, arch: t.arch }; }),
     users: st.members.map(function (m) { const v = view_(st, m.email); return { email: m.email, name: m.name || m.email, active: m.active, g: v.g, r: v.r }; }),
     projects: st.projects.map(function (p) { return { id: p.id, n: p.n, d: p.d, t: p.t, s: p.s, e: p.e, st: p.st, arch: p.arch }; }),
@@ -390,8 +400,8 @@ function addDocsNew_(c, scope, target, docs) {
 function docTarget_(st, scope, id) {
   let target = String(id || '');
   if (scope === 'task') {
-    const t = st.tasks.find(function (x) { return x.id === target; });
-    if (!t || t.arch) throw new Error('タスクが見つかりません。');
+    // アーカイブ済みのタスクにも、資料の追加・削除ができる(資料一覧に表示するため)
+    if (!st.tasks.some(function (x) { return x.id === target; })) throw new Error('タスクが見つかりません。');
   } else if (scope === 'project') {
     const pr = st.projects.find(function (x) { return x.id === target; });
     if (!pr || pr.arch) throw new Error('プロジェクトが見つかりません。');
@@ -421,12 +431,23 @@ H.deleteDoc = function (c, p) {
   return null;
 };
 
+/* ---------- タスクの並び替え(本人の表示だけ。操作ログには残さない) ---------- */
+H.saveOrder = function (c, p) {
+  const list = String(p.list || '');
+  if (!/^(team:[\w-]{1,40}|free|mine|proj:[\w-]{1,40})$/.test(list)) throw new Error('並び替えの対象が正しくありません。');
+  const ids = (p.ids || []).map(String).filter(function (x) { return /^[\w-]{1,40}$/.test(x); });
+  if (ids.length > 500) throw new Error('並び替えの対象が多すぎます。');
+  delRows_('order', rows_('order').filter(function (r) { return String(r['メールアドレス']).toLowerCase() === c.email && r['一覧'] === list; }).map(function (r) { return r._row; }));
+  ids.forEach(function (id, i) { add_('order', { 'メールアドレス': c.email, '一覧': list, 'タスクID': id, '順番': String(i + 1) }); });
+  return null;
+};
+
 /* ---------- メンバー・班・役割の管理 ---------- */
 function ensureAdmin_(globals, members) {
   const ok = globals.some(function (g) {
     return G_ADMIN.indexOf(g.role) >= 0 && members.some(function (m) { return m.email === g.email && m.active; });
   });
-  if (!ok) throw new Error('会長またはシステム管理者が一人もいなくなる変更はできません。');
+  if (!ok) throw new Error('会長・システム管理者・先生のいずれも一人もいなくなる変更はできません。');
 }
 function needAdmin_(c) { if (!c.me.admin) deny_('この操作ができるのは、会長とシステム管理者だけです。'); }
 
